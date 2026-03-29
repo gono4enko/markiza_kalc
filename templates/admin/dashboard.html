@@ -2,10 +2,146 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Дашборд — Админ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Дашборд — Маркизы Admin</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#f4f6fb;font-family:'Arial',sans-serif;color:#1a2744}
+    .topbar{background:#1a2744;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+    .topbar h1{font-size:16px;font-weight:700;color:#fff}
+    .topbar a{font-size:13px;color:#8a9bbf;text-decoration:none}
+    .topbar a:hover{color:#fff}
+    .wrap{max-width:1100px;margin:0 auto;padding:24px 16px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px}
+    .stat{background:#fff;border:1.5px solid #dde3f0;border-radius:10px;padding:16px 18px}
+    .stat-label{font-size:11px;font-weight:600;color:#6b7a99;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px}
+    .stat-value{font-size:26px;font-weight:700;color:#1a2744}
+    .stat-value.orange{color:#e8622a}
+    .section{background:#fff;border:1.5px solid #dde3f0;border-radius:10px;margin-bottom:20px;overflow:hidden}
+    .section-header{background:#f4f6fb;border-bottom:1px solid #dde3f0;padding:12px 18px;font-size:13px;font-weight:700;color:#6b7a99;text-transform:uppercase;letter-spacing:0.05em;display:flex;align-items:center;justify-content:space-between}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th{background:#f4f6fb;padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#6b7a99;text-transform:uppercase;letter-spacing:0.04em;border-bottom:1px solid #dde3f0}
+    td{padding:10px 14px;border-bottom:1px solid #f0f3f9;vertical-align:top}
+    tr:last-child td{border-bottom:none}
+    tr:hover td{background:#f9fafc}
+    .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
+    .badge-callback{background:#e8f4fd;color:#1a78c2}
+    .badge-whatsapp{background:#e6faf0;color:#1a7a4a}
+    .badge-telegram{background:#e8f3fd;color:#1368c2}
+    .badge-max{background:#f3eeff;color:#7c3aed}
+    .calc-text{font-size:11px;color:#6b7a99;white-space:pre-wrap;max-width:320px}
+    .form-inline{display:flex;align-items:center;gap:10px}
+    .form-inline input[type=number]{padding:8px 12px;border:1.5px solid #dde3f0;border-radius:8px;font-size:14px;width:90px;outline:none}
+    .form-inline input[type=number]:focus{border-color:#e8622a}
+    .btn{padding:8px 18px;background:#1a2744;border:none;border-radius:8px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;transition:background 0.2s}
+    .btn:hover{background:#243057}
+    .btn-orange{background:#e8622a}
+    .btn-orange:hover{background:#d4541f}
+    .empty{padding:24px;text-align:center;color:#6b7a99;font-size:14px}
+    .reload-btn{font-size:12px;padding:5px 12px;background:#f4f6fb;border:1px solid #dde3f0;border-radius:6px;cursor:pointer;color:#1a2744;font-weight:600}
+    .reload-btn:hover{background:#dde3f0}
+  </style>
 </head>
 <body>
-  {# TODO Фаза 6: список лидов, статистика кэша, управление прайсом #}
-  <p>Дашборд — в разработке (Фаза 6)</p>
+
+<div class="topbar">
+  <h1>Маркизы — Панель управления</h1>
+  <a href="/admin/logout">Выйти</a>
+</div>
+
+<div class="wrap">
+
+  <!-- Статистика -->
+  <div class="grid">
+    <div class="stat">
+      <div class="stat-label">Лидов (показано)</div>
+      <div class="stat-value">{{ leads | length }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Кэш (живых)</div>
+      <div class="stat-value orange">{{ cache_info.alive }} / {{ cache_info.total }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Кэш макс.</div>
+      <div class="stat-value">{{ cache_info.max }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Курс EUR/RUB</div>
+      <div class="stat-value">{{ pricing.euro_rate }}</div>
+    </div>
+  </div>
+
+  <!-- Курс EUR/RUB -->
+  <div class="section">
+    <div class="section-header">
+      Курс EUR/RUB
+    </div>
+    <div style="padding:16px 18px">
+      <form action="/admin/update-euro-rate" method="post" class="form-inline">
+        <label style="font-size:13px;color:#6b7a99">Новый коэффициент:</label>
+        <input type="number" name="euro_rate" value="{{ pricing.euro_rate }}" min="1" max="1000">
+        <button type="submit" class="btn btn-orange">Сохранить</button>
+      </form>
+      <p style="margin-top:10px;font-size:12px;color:#6b7a99">
+        Все значения прайса умножаются на этот коэффициент при расчёте в рублях.
+      </p>
+    </div>
+  </div>
+
+  <!-- Прайс-файл -->
+  <div class="section">
+    <div class="section-header">
+      Прайс-таблицы
+      <form action="/reload-prices" method="post" style="display:inline">
+        <button type="submit" class="reload-btn">↺ Перечитать JSON без рестарта</button>
+      </form>
+    </div>
+    <div style="padding:16px 18px;font-size:13px;color:#6b7a99">
+      Файл: <code>static/data/awning_pricing.json</code> — редактируйте через SFTP/SSH, затем нажмите «Перечитать».
+    </div>
+  </div>
+
+  <!-- Лиды -->
+  <div class="section">
+    <div class="section-header">Последние 100 заявок</div>
+    {% if leads %}
+    <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Дата</th>
+            <th>Телефон</th>
+            <th>Город</th>
+            <th>Канал</th>
+            <th>Расчёт</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for lead in leads %}
+          <tr>
+            <td>{{ lead.id }}</td>
+            <td style="white-space:nowrap">{{ lead.created_at.strftime('%d.%m.%Y %H:%M') if lead.created_at else '—' }}</td>
+            <td style="white-space:nowrap;font-weight:600">{{ lead.phone }}</td>
+            <td>{{ lead.city or '—' }}</td>
+            <td>
+              <span class="badge badge-{{ lead.channel or 'callback' }}">{{ lead.channel or 'callback' }}</span>
+            </td>
+            <td><div class="calc-text">{{ lead.calc_text or '—' }}</div></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">
+      {% if not leads is defined or leads | length == 0 %}
+        База данных не подключена или заявок пока нет.
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+</div>
 </body>
 </html>

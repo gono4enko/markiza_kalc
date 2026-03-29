@@ -1,17 +1,752 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-  <title>Калькулятор маркиз</title>
-  {# TODO Фаза 3: адаптировать calculator_awning_v2_16.html:
-     - Удалить захардкоженные секреты (TG_TOKEN, TG_CHAT, EMAIL)
-     - Заменить calculate() на fetch('/api/calculate', ...)
-     - Заменить submitLead() на fetch('/api/submit-lead', ...)
-     - Подключить /static/js/calculator.js и /static/js/resize_messenger.js
-  #}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Калькулятор маркиз</title>
+<link rel="preload" as="image" href="https://optim.tildacdn.com/tild6539-6430-4935-b431-326366653838/-/format/webp/G100.png.webp">
+<link rel="preload" as="image" href="https://optim.tildacdn.com/tild6464-6439-4133-b936-663366656133/-/format/webp/g110.webp">
+<link rel="preload" as="image" href="https://optim.tildacdn.com/tild3534-6364-4732-a366-336530666261/-/format/webp/CasseteG500.webp">
+<link rel="preload" as="image" href="https://optim.tildacdn.com/tild3462-3138-4334-a664-383236366239/-/format/webp/g400.webp">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ch-dark:#1a2744;--ch-dark2:#243057;
+  --ch-orange:#e8622a;--ch-orange-h:#d4541f;
+  --ch-light:#f4f6fb;--ch-border:#dde3f0;
+  --ch-text:#1a2744;--ch-muted:#6b7a99;
+  --ch-white:#fff;--ch-radius:12px;--ch-radius-sm:8px;
+  --ch-trans:all 0.2s ease;
+}
+body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
+.ch-calc{max-width:580px;margin:0 auto;padding:0 4px}
+
+/* СЕКЦИИ */
+.ch-section{background:var(--ch-white);border:1.5px solid var(--ch-border);border-radius:var(--ch-radius);margin-bottom:12px;overflow:hidden}
+.ch-section-header{background:var(--ch-light);padding:12px 16px;border-bottom:1px solid var(--ch-border);font-size:13px;font-weight:700;color:var(--ch-muted);text-transform:uppercase;letter-spacing:0.05em}
+.ch-section-body{padding:16px}
+
+/* ПОЛЯ */
+.field-wrap{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.field-wrap:last-child{margin-bottom:0}
+.field-label{font-size:12px;font-weight:600;color:var(--ch-muted);text-transform:uppercase;letter-spacing:0.04em}
+.field-row{display:flex;align-items:center;gap:8px}
+.ch-input,.ch-select{width:100%;padding:10px 12px;background:var(--ch-light);border:1.5px solid var(--ch-border);border-radius:var(--ch-radius-sm);font-size:14px;color:var(--ch-text);font-family:'Arial',sans-serif;outline:none;transition:var(--ch-trans);appearance:none;-webkit-appearance:none}
+.ch-input:focus,.ch-select:focus{border-color:var(--ch-orange);background:#fff;box-shadow:0 0 0 3px rgba(232,98,42,0.1)}
+.ch-select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7a99' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;cursor:pointer}
+.field-hint{font-size:11px;color:var(--ch-orange);margin-top:3px}
+.fields-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:400px){.fields-grid{grid-template-columns:1fr}}
+
+/* ТУЛТИП */
+.tip-wrap{position:relative;display:inline-flex;align-items:center;margin-left:6px}
+.tip-icon{width:16px;height:16px;background:var(--ch-orange);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-style:italic;cursor:pointer;flex-shrink:0}
+.tip-box{display:none;position:absolute;bottom:24px;left:50%;transform:translateX(-50%);width:220px;background:var(--ch-dark);color:#fff;padding:10px 12px;border-radius:8px;font-size:12px;line-height:1.5;z-index:100}
+.tip-wrap:hover .tip-box{display:block}
+
+/* КНОПКА */
+.btn-calc{width:100%;padding:14px 24px;background:var(--ch-dark);border:none;border-radius:var(--ch-radius-sm);font-size:15px;font-weight:700;color:#fff;cursor:pointer;transition:var(--ch-trans);font-family:'Arial',sans-serif;letter-spacing:0.02em;margin-top:4px}
+.btn-calc:hover{background:var(--ch-dark2)}
+.btn-calc:active{transform:scale(0.99)}
+
+/* РЕЗУЛЬТАТ */
+.result-block{background:var(--ch-dark);border-radius:var(--ch-radius);padding:24px;margin-top:16px;display:none;animation:chSlide 0.4s ease}
+.result-block.visible{display:block}
+@keyframes chSlide{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
+.result-label{font-size:13px;color:#8a9bbf;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px}
+.result-price{font-size:36px;font-weight:700;color:#fff;line-height:1;margin-bottom:20px}
+.result-price span{font-size:22px;margin-left:4px}
+
+/* ДЕТАЛИЗАЦИЯ */
+.breakdown-block{background:var(--ch-white);border:1.5px solid var(--ch-border);border-radius:var(--ch-radius);overflow:hidden;margin-top:16px;display:none;animation:chSlide 0.4s ease 0.1s both}
+.breakdown-block.visible{display:block}
+.breakdown-header{padding:14px 18px;background:var(--ch-light);border-bottom:1px solid var(--ch-border);font-size:13px;font-weight:700;color:var(--ch-muted);text-transform:uppercase;letter-spacing:0.05em}
+.bd-row{display:flex;justify-content:space-between;align-items:baseline;padding:10px 18px;border-bottom:1px solid #f0f3f9;font-size:13px}
+.bd-row:last-child{border-bottom:none;font-weight:700}
+.bd-label{color:var(--ch-text);flex:1}
+.bd-val{color:var(--ch-orange);font-weight:600;text-align:right;margin-left:12px}
+.bd-total .bd-label{font-weight:700}
+.bd-total .bd-val{font-size:15px}
+
+/* ФОРМА */
+.lead-form{background:var(--ch-dark);border-radius:var(--ch-radius);padding:24px;margin-top:16px;display:none;animation:chSlide 0.4s ease}
+.lead-form.visible{display:block}
+.lead-title{font-size:17px;font-weight:700;color:#fff;margin-bottom:4px}
+.lead-sub{font-size:13px;color:#8a9bbf;margin-bottom:16px;line-height:1.5}
+.lead-sub strong{color:var(--ch-orange)}
+.lead-channels{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
+.lead-channel-btn{display:flex;align-items:center;justify-content:center;gap:7px;padding:11px 10px;background:rgba(255,255,255,0.07);border:1.5px solid rgba(255,255,255,0.15);border-radius:var(--ch-radius-sm);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:'Arial',sans-serif;transition:var(--ch-trans);text-decoration:none}
+.lead-channel-btn:hover{background:rgba(255,255,255,0.13);border-color:rgba(255,255,255,0.3)}
+.lead-channel-btn.ch-wa{border-color:#25D366;color:#25D366}
+.lead-channel-btn.ch-wa:hover{background:rgba(37,211,102,0.15)}
+.lead-channel-btn.ch-tg{border-color:#229ED9;color:#229ED9}
+.lead-channel-btn.ch-tg:hover{background:rgba(34,158,217,0.15)}
+.lead-channel-btn.ch-max{border-color:#A78BFA;color:#A78BFA}
+.lead-channel-btn.ch-max:hover{background:rgba(167,139,250,0.15)}
+.lead-divider{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.lead-divider::before,.lead-divider::after{content:'';flex:1;height:1px;background:rgba(255,255,255,0.15)}
+.lead-divider span{font-size:11px;color:#5a6a8a;white-space:nowrap}
+.lead-row{display:flex;gap:10px}
+.lead-phone{flex:1;padding:13px 16px;background:#fff;border:2px solid transparent;border-radius:var(--ch-radius-sm);font-size:16px;color:var(--ch-text);font-family:'Arial',sans-serif;outline:none;transition:var(--ch-trans)}
+.lead-phone:focus{border-color:var(--ch-orange)}
+.lead-phone.err{border-color:#ff5252}
+.lead-phone::placeholder{color:#aaa}
+.lead-btn{padding:13px 22px;background:var(--ch-orange);border:none;border-radius:var(--ch-radius-sm);font-size:14px;font-weight:700;color:#fff;cursor:pointer;white-space:nowrap;font-family:'Arial',sans-serif;transition:var(--ch-trans)}
+.lead-btn:hover{background:var(--ch-orange-h)}
+.lead-btn:disabled{opacity:0.6;cursor:not-allowed}
+.lead-privacy{font-size:11px;color:#5a6a8a;margin-top:12px;line-height:1.5}
+.lead-privacy a{color:#5a6a8a;text-decoration:underline}
+.lead-success{background:var(--ch-dark);border-radius:var(--ch-radius);padding:24px;margin-top:16px;display:none}
+.lead-success.visible{display:block;animation:chSlide 0.4s ease}
+.success-icon{width:48px;height:48px;background:var(--ch-orange);border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
+.success-icon svg{width:24px;height:24px;stroke:#fff;stroke-width:2.5;fill:none}
+.success-title{font-size:17px;font-weight:700;color:#fff;margin-bottom:6px}
+.success-sub{font-size:13px;color:#8a9bbf;line-height:1.6}
+.success-sub strong{color:var(--ch-orange)}
+
+/* ПРЕВЬЮ МАРКИЗЫ */
+.awning-preview{
+  margin-top:12px;
+  background:var(--ch-light);
+  border:1.5px solid var(--ch-border);
+  border-radius:var(--ch-radius-sm);
+  overflow:hidden;
+}
+
+/* КАРУСЕЛЬ */
+.aw-carousel{position:relative;background:#000;border-radius:var(--ch-radius-sm);overflow:hidden}
+.aw-slides{display:flex;transition:transform 0.35s ease;height:280px}
+.aw-slide{min-width:100%;display:flex;align-items:center;justify-content:center;background:#111}
+.aw-slide img{width:100%;height:280px;object-fit:cover;display:block}
+.aw-prev,.aw-next{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.45);border:none;color:#fff;font-size:24px;width:32px;height:48px;cursor:pointer;border-radius:4px;z-index:2;line-height:1;padding:0;transition:background 0.2s}
+.aw-prev{left:4px}
+.aw-next{right:4px}
+.aw-prev:hover,.aw-next:hover{background:rgba(0,0,0,0.7)}
+.aw-dots{display:flex;justify-content:center;gap:6px;padding:8px;background:#111}
+.aw-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.35);cursor:pointer;transition:background 0.2s}
+.aw-dot.active{background:#e8622a}
+
+.awning-preview-label{font-size:12px;font-weight:600;color:var(--ch-muted);text-transform:uppercase;letter-spacing:0.04em;padding:8px 12px 2px}
+.awning-preview-desc{font-size:12px;color:var(--ch-muted);padding:0 12px 10px;line-height:1.4}
+
+/* МОБИЛЬНАЯ АДАПТАЦИЯ */
+@media(max-width:600px){
+  .ch-calc{padding:0 2px}
+  .ch-section-body{padding:12px}
+  .ch-input,.ch-select{font-size:16px;padding:10px}
+  .field-wrap{margin-bottom:10px}
+  .btn-calc{font-size:14px;padding:13px}
+  .result-block{padding:18px 16px}
+  .result-price{font-size:28px}
+  .breakdown-block{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .breakdown-header{padding:12px 14px}
+  .bd-row{padding:8px 12px;font-size:12px}
+  .lead-form{padding:18px 16px}
+  .lead-title{font-size:15px}
+  .lead-channels{grid-template-columns:1fr 1fr;gap:6px}
+  .lead-channel-btn{font-size:12px;padding:10px 6px}
+  .lead-row{flex-direction:column}
+  .lead-btn{width:100%;text-align:center}
+  .lead-success{padding:18px 16px}
+}
+@media(max-width:380px){
+  .lead-channels{grid-template-columns:1fr}
+  .result-price{font-size:24px}
+}
+
+/* КАРУСЕЛЬ МАРКИЗ (второй блок — дублирует первый, но оставляем для совместимости) */
+.aw-carousel{position:relative;overflow:hidden;border-radius:8px;background:#f0f3f8;margin-bottom:2px}
+.aw-slides{display:flex;transition:transform 0.35s ease;will-change:transform}
+.aw-slide{min-width:100%;aspect-ratio:4/3}
+.aw-slide img{width:100%;height:100%;object-fit:contain;display:block;background:#f0f3f8}
+.aw-prev,.aw-next{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.35);color:#fff;border:none;width:30px;height:44px;font-size:22px;line-height:1;cursor:pointer;border-radius:4px;padding:0;display:flex;align-items:center;justify-content:center;transition:background 0.2s;z-index:2}
+.aw-prev{left:4px}.aw-next{right:4px}
+.aw-prev:hover,.aw-next:hover{background:rgba(0,0,0,0.55)}
+.aw-dots{display:flex;justify-content:center;gap:5px;padding:6px 0 2px}
+.aw-dot{width:7px;height:7px;border-radius:50%;background:rgba(0,0,0,0.2);cursor:pointer;transition:background 0.2s;border:none;padding:0}
+.aw-dot.active{background:var(--ch-orange)}
+
+/* Config preview */
+.cfg-img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;opacity:0;transition:none;pointer-events:none}
+.cfg-img.cfg-active{opacity:1;pointer-events:auto}
+#configPreview{position:relative;margin-top:10px;border-radius:6px;overflow:hidden;background:#f4f6fb;display:none}
+#configPreview.cfg-visible{display:block}
+
+/* Карусель тканей */
+.tc-carousel{position:relative}
+.tc-track{display:flex;gap:6px;overflow-x:auto;scroll-behavior:smooth;padding:4px 2px;scrollbar-width:none;-ms-overflow-style:none}
+.tc-track::-webkit-scrollbar{display:none}
+.tc-slide{flex:0 0 calc(25% - 5px);min-width:68px;cursor:pointer;border-radius:6px;overflow:hidden;border:2px solid transparent;transition:border-color 0.15s}
+.tc-slide:hover{border-color:var(--ch-orange)}
+.tc-slide.tc-selected{border-color:var(--ch-orange)}
+.tc-name{font-size:10px;text-align:center;padding:3px 2px;background:#f4f6fb;color:var(--ch-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tc-btn{position:absolute;top:34px;background:rgba(255,255,255,0.92);border:1px solid #dde3f0;color:#3a4a6b;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.1);z-index:2}
+.tc-btn.tc-prev{left:0}
+.tc-btn.tc-next{right:0}
+</style>
 </head>
 <body>
-  <p>Калькулятор — в разработке (Фаза 3)</p>
+<div class="ch-calc">
+
+  <!-- ВИД МАРКИЗЫ -->
+  <div class="ch-section">
+    <div class="ch-section-header">Параметры маркизы</div>
+    <div class="ch-section-body">
+      <div class="field-wrap">
+        <div class="field-row">
+          <div class="field-label">Вид маркизы</div>
+          <div class="tip-wrap"><div class="tip-icon">i</div><div class="tip-box">Локтевая — для террас и балконов. Витринная — для магазинов. ZIP — вертикальное затенение.</div></div>
+        </div>
+        <select class="ch-select" id="awning-type">
+          <option value="standard" selected>Локтевая маркиза</option>
+          <option value="storefront">Витринная маркиза</option>
+          <option value="zip">Вертикальная ZIP маркиза</option>
+        </select>
+
+        <!-- ПРЕВЬЮ ВЫБРАННОГО ТИПА -->
+        <div class="awning-preview" id="awningPreview">
+          <div id="awningPreviewSvg"></div>
+          <div class="awning-preview-label" id="awningPreviewLabel">Локтевая маркиза</div>
+          <div class="awning-preview-desc" id="awningPreviewDesc">Выдвижной козырёк на кронштейнах для террас и балконов</div>
+        </div>
+      </div>
+
+      <div class="field-wrap">
+        <div class="field-row">
+          <div class="field-label">Тип конструкции</div>
+          <div class="tip-wrap"><div class="tip-icon">i</div><div class="tip-box">Открытая — базовый вариант. Полукассетная — частичная защита ткани. Кассетная — полная защита в закрытом состоянии.</div></div>
+        </div>
+        <select class="ch-select" id="config" onchange="updateConfigPreview(this)">
+          <option value="open">Открытая</option>
+          <option value="semi">Полукассетная</option>
+          <option value="cassette">Кассетная</option>
+        </select>
+        <div id="configPreview">
+          <div style="position:relative;width:100%;padding-bottom:37%;min-height:120px">
+            <img class="cfg-img" id="cfg-open"     src="https://optim.tildacdn.com/tild6539-6430-4935-b431-326366653838/-/format/webp/G100.png.webp"     alt="Открытая маркиза">
+            <img class="cfg-img" id="cfg-semi"     src="https://optim.tildacdn.com/tild6464-6439-4133-b936-663366656133/-/format/webp/g110.webp"     alt="Полукассетная маркиза">
+            <img class="cfg-img" id="cfg-cassette" src="https://optim.tildacdn.com/tild3534-6364-4732-a366-336530666261/-/format/webp/CasseteG500.webp" alt="Кассетная маркиза">
+            <img class="cfg-img" id="cfg-vitrin"   src="https://optim.tildacdn.com/tild3462-3138-4334-a664-383236366239/-/format/webp/g400.webp"   alt="Витринная маркиза">
+          </div>
+        </div>
+      </div>
+
+      <div class="fields-grid">
+        <div class="field-wrap">
+          <div class="field-label">Ширина, м</div>
+          <input type="number" step="0.1" min="2" max="6" class="ch-input" id="width" value="4">
+          <div class="field-hint" id="width-unavailable"></div>
+        </div>
+        <div class="field-wrap" id="projectionGroup">
+          <div class="field-label">Вылет, м</div>
+          <select class="ch-select" id="projection">
+            <option value="1.5">1.5</option>
+            <option value="2.0">2.0</option>
+            <option value="2.5">2.5</option>
+            <option value="3.0" selected>3.0</option>
+            <option value="3.5">3.5</option>
+          </select>
+          <div class="field-hint" id="projection-unavailable"></div>
+        </div>
+        <div class="field-wrap" id="heightGroup" style="display:none">
+          <div class="field-label">Высота, м</div>
+          <input type="number" step="0.1" min="1" max="5" class="ch-input" id="height" value="2.0">
+          <div class="field-hint" id="height-unavailable"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- МАТЕРИАЛЫ -->
+  <div class="ch-section">
+    <div class="ch-section-header">Материалы и цвет</div>
+    <div class="ch-section-body">
+      <div class="field-wrap" id="fabric-group">
+        <div class="field-row">
+          <div class="field-label">Ткань</div>
+          <div class="tip-wrap"><div class="tip-icon">i</div><div class="tip-box">Gaviota — базовая. Sattler Elements — качественное плетение. Sattler Lumera — премиум с самоочищающимся эффектом.</div></div>
+        </div>
+        <select onchange="updateFabricPreview()" class="ch-select" id="fabric">
+          <option value="gaviota" selected>Gaviota (1-я кат.)</option>
+          <option value="elements">Sattler Elements (2-я кат.)</option>
+          <option value="solids">Sattler Solids (2-я кат.)</option>
+          <option value="lumera">Sattler Lumera (3-я кат.)</option>
+          <option value="lumera3d">Sattler Lumera 3D (3-я кат.)</option>
+        </select>
+        <div id="fabricPreview" style="display:none;margin-top:12px">
+          <div class="field-label" style="margin-bottom:6px">Цвета ткани <span id="tcBrandLabel" style="font-weight:400;color:var(--ch-muted);text-transform:none;font-size:11px"></span></div>
+          <div class="tc-carousel">
+            <div class="tc-track" id="tcTrack"></div>
+            <button class="tc-btn tc-prev" onclick="tcScroll(-1)">&#8249;</button>
+            <button class="tc-btn tc-next" onclick="tcScroll(1)">&#8250;</button>
+          </div>
+        </div>
+      </div>
+      <div class="field-wrap" id="fabric-zip-group" style="display:none">
+        <div class="field-label">Ткань для ZIP</div>
+        <select class="ch-select" id="fabric-zip">
+          <option value="veozip" selected>Screen Veosol/Veozip</option>
+          <option value="soltis">Screen Soltis 86/92</option>
+        </select>
+      </div>
+      <div class="field-wrap" id="frameColor-standard-group">
+        <div class="field-row">
+          <div class="field-label">Цвет каркаса</div>
+          <div class="tip-wrap"><div class="tip-icon">i</div><div class="tip-box">Белый — без доплаты. Коричневый/Антрацит — +5%. Другой RAL — +12%.</div></div>
+        </div>
+        <select class="ch-select" id="frameColor">
+          <option value="white" selected>Белый RAL 9016</option>
+          <option value="brown">Коричневый RAL 8014</option>
+          <option value="anthracite">Антрацит RAL 7016</option>
+          <option value="custom">Другой цвет RAL</option>
+        </select>
+      </div>
+      <div class="field-wrap" id="frameColor-zip-group" style="display:none">
+        <div class="field-label">Цвет каркаса ZIP</div>
+        <select class="ch-select" id="frameColor-zip">
+          <option value="white" selected>Белый RAL 9016</option>
+          <option value="brown">Коричневый RAL 8014</option>
+          <option value="custom">Другой цвет RAL</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- УПРАВЛЕНИЕ -->
+  <div class="ch-section">
+    <div class="ch-section-header">Управление и автоматика</div>
+    <div class="ch-section-body">
+      <div class="field-wrap">
+        <div class="field-label">Управление</div>
+        <select class="ch-select" id="control">
+          <option value="manual">Ручное</option>
+          <option value="electric" selected>Электропривод</option>
+        </select>
+      </div>
+      <div id="electricOptions">
+        <div class="field-wrap">
+          <div class="field-row">
+            <div class="field-label">Производитель автоматики</div>
+            <div class="tip-wrap"><div class="tip-icon">i</div><div class="tip-box">Somfy — премиум. Simu — средний класс. Decolife — экономичный вариант.</div></div>
+          </div>
+          <select class="ch-select" id="motorBrand">
+            <option value="somfy">Somfy (Франция)</option>
+            <option value="simu">Simu (Франция)</option>
+            <option value="decolife" selected>Decolife (Белоруссия)</option>
+          </select>
+        </div>
+        <div class="field-wrap" id="sensorGroup">
+          <div class="field-row">
+            <div class="field-label">Датчики</div>
+            <div class="tip-wrap"><div class="tip-icon">i</div><div class="tip-box">Датчик ветра защищает от повреждений. Датчик ветра и солнца также автоматически раскрывает маркизу.</div></div>
+          </div>
+          <select class="ch-select" id="sensorType">
+            <option value="none" selected>Без датчика</option>
+            <option value="radio">Датчик ветровых колебаний</option>
+            <option value="speed">Датчик ветра и солнца</option>
+          </select>
+        </div>
+        <div class="field-wrap" id="lightingGroup">
+          <div class="field-row">
+            <div class="field-label">LED подсветка</div>
+            <div class="tip-wrap"><div class="tip-icon">i</div><div class="tip-box">Подсветка интегрируется в профиль маркизы и освещает пространство в вечернее время.</div></div>
+          </div>
+          <select class="ch-select" id="lightingOption">
+            <option value="none" selected>Без подсветки</option>
+            <option value="standard">С LED подсветкой</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- УСТАНОВКА -->
+  <div class="ch-section">
+    <div class="ch-section-header">Установка</div>
+    <div class="ch-section-body">
+      <div class="field-wrap">
+        <div class="field-label">Монтаж</div>
+        <select class="ch-select" id="installationSelect">
+          <option value="none" selected>Без установки</option>
+          <option value="with">С установкой</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn-calc" id="calcBtn">Рассчитать стоимость</button>
+
+  <!-- РЕЗУЛЬТАТ -->
+  <div class="result-block" id="resultBlock">
+    <div class="result-label">Итоговая стоимость</div>
+    <div class="result-price" id="resultPrice">0 <span>₽</span></div>
+  </div>
+
+  <!-- ДЕТАЛИЗАЦИЯ -->
+  <div class="breakdown-block" id="breakdownBlock">
+    <div class="breakdown-header">Детализация расчёта</div>
+    <div id="breakdownBody"></div>
+  </div>
+
+  <!-- ФОРМА ЗАЯВКИ -->
+  <div class="lead-form" id="leadForm">
+    <div class="lead-title">Обсудить расчёт с менеджером</div>
+    <div class="lead-sub" id="leadSub">Ваш расчёт: <strong>готов</strong> — выберите удобный способ связи</div>
+    <div class="lead-channels">
+      <a id="btnWhatsapp" class="lead-channel-btn ch-wa" href="#" target="_blank">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.112 1.523 5.836L0 24l6.335-1.507A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.947 0-3.772-.53-5.338-1.452l-.383-.227-3.964.943.999-3.875-.25-.399A9.952 9.952 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+        WhatsApp
+      </a>
+      <a id="btnTelegram" class="lead-channel-btn ch-tg" href="#" target="_blank">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.247l-1.97 9.289c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L6.922 14.06l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.894.525z"/></svg>
+        Telegram
+      </a>
+      <a id="btnMax" class="lead-channel-btn ch-max" href="https://max.ru/u/f9LHodD0cOI8Gt2Q_jFHYB84JqGSuTC8ZI5-nNEqEEwBt4fNRLpoE4bDvCs" target="_blank">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/><path fill="#fff" d="M7 9l5 5 5-5"/></svg>
+        Max
+      </a>
+      <button class="lead-channel-btn" onclick="document.getElementById('callbackBlock').style.display=document.getElementById('callbackBlock').style.display==='none'?'block':'none'">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 14.92z"/></svg>
+        Перезвонить
+      </button>
+    </div>
+    <div id="callbackBlock" style="display:none">
+      <div class="lead-divider"><span>введите номер для звонка</span></div>
+      <div class="lead-row">
+        <input type="tel" class="lead-phone" id="leadPhone" placeholder="+7 (___) ___-__-__" autocomplete="tel">
+        <button class="lead-btn" id="leadBtn" onclick="submitLead()">Жду звонка</button>
+      </div>
+    </div>
+    <p class="lead-privacy" style="margin-top:14px">
+      Нажимая кнопку или переходя в мессенджер, я даю <a href="https://pergolamarket.ru/soglasie-na-obrabotku-pd" target="_blank">согласие на обработку персональных данных</a>
+    </p>
+  </div>
+
+  <!-- УСПЕХ -->
+  <div class="lead-success" id="leadSuccess">
+    <div class="success-icon"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+    <div class="success-title">Заявка принята!</div>
+    <div class="success-sub" id="successSub">Менеджер перезвонит в течение 15 минут.</div>
+  </div>
+
+</div>
+
+<script>
+/* =====================================================================
+   Данные, зависящие от сервера (без секретов)
+===================================================================== */
+window._YM_ID = {{ ym_id | tojson }};
+
+/* =====================================================================
+   КАРУСЕЛЬ ТКАНЕЙ — данные из оригинального JS (не содержат секретов)
+===================================================================== */
+var FABRIC_DATA = {
+  gaviota: [
+  'https://optim.tildacdn.com/tild6437-3231-4133-a433-303765366564/-/format/webp/1.jpg|||Blanco',
+  'https://optim.tildacdn.com/tild6465-3861-4333-b331-326536633861/-/format/webp/2.jpg|||Natural',
+  'https://optim.tildacdn.com/tild6262-3130-4435-a464-653266356564/-/format/webp/3.jpg|||Crema',
+  'https://optim.tildacdn.com/tild6238-3361-4630-a433-623262643636/-/format/webp/4.jpg|||Marfil',
+  'https://optim.tildacdn.com/tild6665-3330-4830-a231-323833326664/-/format/webp/5.jpg|||Arido',
+  'https://optim.tildacdn.com/tild3937-3637-4436-b837-623532616334/-/format/webp/6.jpg|||Vainilla',
+  'https://optim.tildacdn.com/tild3365-6466-4335-a633-636333666139/-/format/webp/7.jpg|||Nude',
+  'https://optim.tildacdn.com/tild6431-6238-4333-a336-313130653161/-/format/webp/8.jpg|||Sahara',
+  'https://optim.tildacdn.com/tild3463-3166-4534-b864-353565333835/-/format/webp/9.jpg|||Coconut',
+  'https://optim.tildacdn.com/tild3231-3831-4561-b636-373038393636/-/format/webp/10.jpg|||Terra',
+  'https://optim.tildacdn.com/tild3838-3435-4365-b037-363561613365/-/format/webp/11.jpg|||Seed',
+  'https://optim.tildacdn.com/tild6665-6334-4931-a431-643031323936/-/format/webp/12.jpg|||Beige',
+  'https://optim.tildacdn.com/tild6465-3038-4466-b662-316364303130/-/format/webp/13.jpg|||Mostaza',
+  'https://optim.tildacdn.com/tild3661-6564-4765-b337-343463646139/-/format/webp/14.jpg|||Palm',
+  'https://optim.tildacdn.com/tild6131-3132-4264-b037-663636356430/-/format/webp/15.jpg|||Ocre',
+  'https://optim.tildacdn.com/tild6135-3534-4132-b133-333563336435/-/format/webp/16.jpg|||Marron',
+  'https://optim.tildacdn.com/tild3264-3439-4131-b432-636264626332/-/format/webp/17.jpg|||Cafe',
+  'https://optim.tildacdn.com/tild6565-3130-4535-b231-343830653765/-/format/webp/18.jpg|||Amarillo',
+  'https://optim.tildacdn.com/tild6163-3930-4337-a264-313866303437/-/format/webp/19.jpg|||Naranja',
+  'https://optim.tildacdn.com/tild6330-6530-4565-b133-363437303038/-/format/webp/20.jpg|||Caravan',
+  'https://optim.tildacdn.com/tild3163-6663-4333-a538-373261323864/-/format/webp/21.jpg|||Rojo',
+  'https://optim.tildacdn.com/tild3461-3465-4839-b166-643562366561/-/format/webp/22.jpg|||Merlot',
+  'https://optim.tildacdn.com/tild6364-6331-4162-a564-616666316331/-/format/webp/23.jpg|||Granate',
+  'https://optim.tildacdn.com/tild3434-6330-4335-a265-313766623361/-/format/webp/24.jpg|||Turquesa',
+  'https://optim.tildacdn.com/tild3562-6330-4464-b033-323934363130/-/format/webp/25.jpg|||Denim',
+  'https://optim.tildacdn.com/tild3232-6263-4161-a861-303535623435/-/format/webp/26.jpg|||Naval',
+  'https://optim.tildacdn.com/tild6332-6632-4538-a538-633265633965/-/format/webp/27.jpg|||Azul',
+  'https://optim.tildacdn.com/tild3737-3631-4235-b930-323837333333/-/format/webp/28.jpg|||Marino',
+  'https://optim.tildacdn.com/tild6161-6534-4337-a565-333061613036/-/format/webp/29.jpg|||Peridot',
+  'https://optim.tildacdn.com/tild6561-6338-4035-b938-636630616234/-/format/webp/30.jpg|||Helecho',
+  'https://optim.tildacdn.com/tild6662-6139-4438-b662-616536643536/-/format/webp/31.jpg|||Lima',
+  'https://optim.tildacdn.com/tild3162-6266-4163-b938-646331323735/-/format/webp/32.jpg|||Verde',
+  'https://optim.tildacdn.com/tild3566-3734-4532-b632-313463323062/-/format/webp/33.jpg|||Dark Green',
+  'https://optim.tildacdn.com/tild6566-6635-4366-b064-633365366339/-/format/webp/34.jpg|||Silver',
+  'https://optim.tildacdn.com/tild3662-3232-4136-b934-353839316665/-/format/webp/35.jpg|||Perla',
+  'https://optim.tildacdn.com/tild3235-3831-4635-b061-303763306338/-/format/webp/36.jpg|||Gris',
+  'https://optim.tildacdn.com/tild3863-3662-4162-b033-613438636365/-/format/webp/37.jpg|||Stone',
+  'https://optim.tildacdn.com/tild6230-3733-4037-a235-666537353631/-/format/webp/38.jpg|||Gris Especial',
+  'https://optim.tildacdn.com/tild6438-3036-4163-a266-366465336237/-/format/webp/39.jpg|||Basalto',
+  'https://optim.tildacdn.com/tild6366-6662-4765-a162-656239313131/-/format/webp/40.jpg|||Lunar',
+  'https://optim.tildacdn.com/tild6239-3338-4364-a334-653966643365/-/format/webp/41.jpg|||Antracita',
+  'https://optim.tildacdn.com/tild3432-3264-4630-a638-386461333933/-/format/webp/42.jpg|||Negro Especial',
+  'https://optim.tildacdn.com/tild3935-3139-4866-b764-336230323562/-/format/webp/43.jpg|||Negro',
+  'https://optim.tildacdn.com/tild6662-3538-4438-a633-323662633334/-/format/webp/44.jpg|||Blanco Rayado',
+  'https://optim.tildacdn.com/tild3332-3035-4261-a235-666638653862/-/format/webp/45.jpg|||Gris Claro',
+  'https://optim.tildacdn.com/tild6161-3030-4635-b530-376232653964/-/format/webp/46.jpg|||Gris Squared',
+  'https://optim.tildacdn.com/tild3732-6436-4661-a330-343231363661/-/format/webp/47.jpg|||Arido Squared',
+  'https://optim.tildacdn.com/tild3337-3630-4562-b235-386235313331/-/format/webp/48.jpg|||Celeste Squared'
+  ],
+  lumera3d: [
+  'https://optim.tildacdn.com/tild6430-3663-4862-a563-393134383130/-/format/webp/385_101.jpg|||385-101',
+  'https://optim.tildacdn.com/tild6632-3038-4663-a535-613539386137/-/format/webp/385_110.jpg|||385-110',
+  'https://optim.tildacdn.com/tild6464-3162-4062-a465-363361643632/-/format/webp/385_201.jpg|||385-201',
+  'https://optim.tildacdn.com/tild6139-3535-4630-b563-386365356335/-/format/webp/385_210.jpg|||385-210',
+  'https://optim.tildacdn.com/tild3635-3363-4966-b664-333032356361/-/format/webp/385_220.jpg|||385-220',
+  'https://optim.tildacdn.com/tild3265-6336-4032-b665-383834316437/-/format/webp/385_301.jpg|||385-301',
+  'https://optim.tildacdn.com/tild3332-3133-4065-b462-373036316563/-/format/webp/385_320.jpg|||385-320',
+  'https://optim.tildacdn.com/tild3333-3734-4938-a235-616231323264/-/format/webp/385710.jpg|||385-710',
+  'https://optim.tildacdn.com/tild3333-6331-4562-b436-343932393534/-/format/webp/385_802.jpg|||385-802',
+  'https://optim.tildacdn.com/tild3932-3738-4565-b134-653230383666/-/format/webp/385_803.jpg|||385-803',
+  'https://optim.tildacdn.com/tild6131-3633-4336-b638-356265646338/-/format/webp/385_810.jpg|||385-810',
+  'https://optim.tildacdn.com/tild3966-3939-4162-a638-356630363163/-/format/webp/385_811.jpg|||385-811',
+  'https://optim.tildacdn.com/tild3336-3837-4062-a265-373263373561/-/format/webp/385_820.jpg|||385-820',
+  'https://optim.tildacdn.com/tild3037-3834-4837-a635-356337393564/-/format/webp/385_901.jpg|||385-901',
+  'https://optim.tildacdn.com/tild3338-3164-4265-a566-393835663736/-/format/webp/385_910.jpg|||385-910'
+  ],
+  lumera: [
+  'https://optim.tildacdn.com/tild3838-6430-4764-a265-343133653936/-/format/webp/1.jpg|||Lumera 1',
+  'https://optim.tildacdn.com/tild3833-6563-4138-a436-663334343035/-/format/webp/2.jpg|||Lumera 2',
+  'https://optim.tildacdn.com/tild6638-3237-4538-a533-653363336666/-/format/webp/3.jpg|||Lumera 3',
+  'https://optim.tildacdn.com/tild6431-3731-4562-b137-653138306662/-/format/webp/4.jpg|||Lumera 4',
+  'https://optim.tildacdn.com/tild3134-6133-4165-a235-363735633136/-/format/webp/5.jpg|||Lumera 5',
+  'https://optim.tildacdn.com/tild6537-3637-4666-b535-656566363138/-/format/webp/6.jpg|||Lumera 6',
+  'https://optim.tildacdn.com/tild6166-6431-4131-a166-383766353433/-/format/webp/7.jpg|||Lumera 7',
+  'https://optim.tildacdn.com/tild3361-3839-4435-a133-613039393734/-/format/webp/8.jpg|||Lumera 8',
+  'https://optim.tildacdn.com/tild6531-6630-4132-b834-383734666436/-/format/webp/9.jpg|||Lumera 9',
+  'https://optim.tildacdn.com/tild6239-6230-4538-a462-346263663336/-/format/webp/10.jpg|||Lumera 10',
+  'https://optim.tildacdn.com/tild3135-6564-4731-b164-306532303437/-/format/webp/11.jpg|||Lumera 11',
+  'https://optim.tildacdn.com/tild3463-6135-4632-b465-633138356630/-/format/webp/12.jpg|||Lumera 12',
+  'https://optim.tildacdn.com/tild6532-3338-4362-a466-643134633836/-/format/webp/13.jpg|||Lumera 13',
+  'https://optim.tildacdn.com/tild3061-3537-4835-b465-316437396362/-/format/webp/14.jpg|||Lumera 14',
+  'https://optim.tildacdn.com/tild3330-6533-4339-b365-373130323031/-/format/webp/15.jpg|||Lumera 15',
+  'https://optim.tildacdn.com/tild3062-3764-4064-b639-636465383264/-/format/webp/16.jpg|||Lumera 16',
+  'https://optim.tildacdn.com/tild3935-3436-4665-b534-666630356336/-/format/webp/17.jpg|||Lumera 17',
+  'https://optim.tildacdn.com/tild3539-6234-4334-a334-616137313039/-/format/webp/18.jpg|||Lumera 18',
+  'https://optim.tildacdn.com/tild6330-3862-4065-b837-383434393365/-/format/webp/19.jpg|||Lumera 19',
+  'https://optim.tildacdn.com/tild6361-3234-4865-b732-656139336337/-/format/webp/20.jpg|||Lumera 20',
+  'https://optim.tildacdn.com/tild3835-3064-4363-a536-643332363165/-/format/webp/21.jpg|||Lumera 21',
+  'https://optim.tildacdn.com/tild6334-3837-4162-a563-633461643064/-/format/webp/22.jpg|||Lumera 22',
+  'https://optim.tildacdn.com/tild3563-6635-4038-b131-616334373064/-/format/webp/23.jpg|||Lumera 23',
+  'https://optim.tildacdn.com/tild3062-3638-4332-b433-643461653030/-/format/webp/24.jpg|||Lumera 24',
+  'https://optim.tildacdn.com/tild3133-3265-4638-b034-366230393334/-/format/webp/25.jpg|||Lumera 25',
+  'https://optim.tildacdn.com/tild3830-3430-4137-a437-326230353738/-/format/webp/26.jpg|||Lumera 26',
+  'https://optim.tildacdn.com/tild3136-3231-4064-a266-653432313637/-/format/webp/27.jpg|||Lumera 27',
+  'https://optim.tildacdn.com/tild3633-6266-4264-b037-633562636663/-/format/webp/28.jpg|||Lumera 28',
+  'https://optim.tildacdn.com/tild3266-3164-4439-b263-653130616163/-/format/webp/29.jpg|||Lumera 29',
+  'https://optim.tildacdn.com/tild3830-6330-4539-b864-363166323861/-/format/webp/30.jpg|||Lumera 30'
+  ],
+  elements: [
+  'https://optim.tildacdn.com/tild3332-3462-4062-b632-316366396438/-/format/webp/314_422.jpg|||314-422',
+  'https://optim.tildacdn.com/tild3934-3636-4466-b739-323735376435/-/format/webp/315_105.jpg|||315-105',
+  'https://optim.tildacdn.com/tild6634-6230-4631-b831-306236383135/-/format/webp/315_167.jpg|||315-167',
+  'https://optim.tildacdn.com/tild3561-3361-4138-b630-336236343930/-/format/webp/315_170.jpg|||315-170',
+  'https://optim.tildacdn.com/tild6537-6165-4533-a338-656235346164/-/format/webp/315_222.jpg|||315-222',
+  'https://optim.tildacdn.com/tild3830-6363-4834-b161-306362336432/-/format/webp/315_550.jpg|||315-550',
+  'https://optim.tildacdn.com/tild3836-3430-4933-a135-356532343431/-/format/webp/315_602.jpg|||315-602',
+  'https://optim.tildacdn.com/tild6536-3537-4733-b962-376137643262/-/format/webp/315_704.jpg|||315-704',
+  'https://optim.tildacdn.com/tild6132-6330-4665-b132-393338316335/-/format/webp/315_710.jpg|||315-710',
+  'https://optim.tildacdn.com/tild6435-3865-4664-b235-396635636231/-/format/webp/315_711.jpg|||315-711'
+  ],
+  solids: [
+  'https://optim.tildacdn.com/tild3830-3431-4063-b663-666238653535/-/format/webp/203.jpg|||203',
+  'https://optim.tildacdn.com/tild3435-6336-4535-b037-373135623863/-/format/webp/301.jpg|||301',
+  'https://optim.tildacdn.com/tild6532-3162-4062-b235-313131323837/-/format/webp/421.jpg|||421',
+  'https://optim.tildacdn.com/tild6564-3737-4861-b237-313934323937/-/format/webp/605.jpg|||605',
+  'https://optim.tildacdn.com/tild3166-3130-4231-a163-646261653330/-/format/webp/620.jpg|||620',
+  'https://optim.tildacdn.com/tild6537-3566-4839-b930-333563333166/-/format/webp/621.jpg|||621',
+  'https://optim.tildacdn.com/tild6431-3737-4361-a230-366336616461/-/format/webp/622.jpg|||622',
+  'https://optim.tildacdn.com/tild3361-3535-4632-b664-383163326135/-/format/webp/623.jpg|||623',
+  'https://optim.tildacdn.com/tild6639-6135-4433-a431-336139656132/-/format/webp/624.jpg|||624',
+  'https://optim.tildacdn.com/tild3432-3531-4965-b933-356530303039/-/format/webp/625.jpg|||625'
+  ]
+};
+
+function buildFabricCarousel(brand) {
+  var track = document.getElementById('tcTrack');
+  var label = document.getElementById('tcBrandLabel');
+  if (!track) return;
+  track.textContent = '';
+  var items = FABRIC_DATA[brand] || [];
+  items.forEach(function(item) {
+    var parts = item.split('|||');
+    var imgUrl = parts[0], name = parts[1] || '';
+    var div = document.createElement('div');
+    div.className = 'tc-slide';
+    var img = document.createElement('img');
+    img.src = imgUrl;
+    img.alt = name;
+    img.style.cssText = 'width:100%;height:80px;object-fit:cover';
+    var nameDiv = document.createElement('div');
+    nameDiv.className = 'tc-name';
+    nameDiv.textContent = name;
+    div.appendChild(img);
+    div.appendChild(nameDiv);
+    div.addEventListener('click', function() {
+      track.querySelectorAll('.tc-slide').forEach(function(s){ s.classList.remove('tc-selected'); });
+      div.classList.add('tc-selected');
+    });
+    track.appendChild(div);
+  });
+  var labels = {gaviota:'Gaviota', lumera3d:'Sattler Lumera 3D', lumera:'Sattler Lumera', elements:'Sattler Elements', solids:'Sattler Solids'};
+  if (label) label.textContent = '— ' + (labels[brand] || brand);
+  track.scrollLeft = 0;
+}
+
+/* =====================================================================
+   ПРЕВЬЮ МАРКИЗЫ — данные каруселей
+===================================================================== */
+var AWNING_PREVIEWS = {
+  standard: {
+    label: 'Локтевая маркиза',
+    desc: 'Выдвижной козырёк на локтевых кронштейнах — для террас, балконов, летних площадок',
+    images: [
+      'https://optim.tildacdn.com/tild3038-3563-4735-b835-613132666131/-/format/webp/7a4d0d8c-4576-4f96-8.jpeg.webp',
+      'https://optim.tildacdn.com/tild3938-3530-4163-b337-656532333766/-/format/webp/IMG_6334.jpg.webp',
+      'https://optim.tildacdn.com/tild3839-6437-4136-a465-313134653239/-/format/webp/dd411bd5-1f03-4611-a.jpeg.webp',
+      'https://optim.tildacdn.com/tild6364-6263-4061-a266-656465326439/-/format/webp/8f5280d5-2f0c-44b7-b.jpeg.webp',
+      'https://optim.tildacdn.com/tild3939-3132-4432-b433-623330666433/-/format/webp/ed8d4604-b577-4046-8.jpeg.webp',
+      'https://optim.tildacdn.com/tild3663-3637-4036-b362-656336356161/-/format/webp/f254cc43-f08d-448c-a.jpeg.webp',
+      'https://optim.tildacdn.com/tild6564-6466-4637-a331-623361613531/-/format/webp/22144f5e-3436-4779-a.jpeg.webp',
+      'https://optim.tildacdn.com/tild3765-3732-4438-a264-656538393336/-/format/webp/dedbddc0-0198-49e4-8.jpeg.webp'
+    ]
+  },
+  storefront: {
+    label: 'Витринная маркиза',
+    desc: 'Горизонтальный козырёк над витриной магазина, кафе или входной группой',
+    images: [
+      'https://optim.tildacdn.com/tild6136-6134-4833-b765-303163303066/-/format/webp/IMG_7768.jpg.webp',
+      'https://optim.tildacdn.com/tild6239-3434-4333-b133-613235346336/-/format/webp/IMG_7724.jpg.webp',
+      'https://optim.tildacdn.com/tild3035-3132-4537-b932-613436353661/-/format/webp/IMG_7775.jpg.webp',
+      'https://optim.tildacdn.com/tild3239-3661-4631-b233-656334316164/-/format/webp/IMG_7727.jpg.webp',
+      'https://optim.tildacdn.com/tild6464-6138-4832-a131-303839633033/-/format/webp/IMG_7734.jpg.webp',
+      'https://optim.tildacdn.com/tild6663-3936-4330-b336-663639363231/-/format/webp/IMG_7750.jpg.webp',
+      'https://optim.tildacdn.com/tild3935-6435-4537-a438-656662646330/-/format/webp/IMG_7335.jpg.webp'
+    ]
+  },
+  zip: {
+    label: 'Вертикальная ZIP маркиза',
+    desc: 'Вертикальное затенение с зип-направляющими — защита от солнца и ветра',
+    images: [
+      'https://optim.tildacdn.com/tild6330-3063-4965-a166-323863653830/-/format/webp/PHOTO-2025-01-05-11-.jpg.webp',
+      'https://optim.tildacdn.com/tild3637-3237-4436-a136-316163316436/-/format/webp/photo.jpeg.webp',
+      'https://optim.tildacdn.com/tild3265-6330-4162-a333-323837373461/-/format/webp/01.jpg.webp',
+      'https://optim.tildacdn.com/tild6364-6634-4262-b037-393665613235/-/format/webp/02.jpg.webp',
+      'https://optim.tildacdn.com/tild6239-3861-4130-a534-353263313864/-/format/webp/03.jpg.webp',
+      'https://optim.tildacdn.com/tild6431-6262-4532-b835-313462306635/-/format/webp/a1aa94d5-285c-41ad-a.jpg.webp',
+      'https://optim.tildacdn.com/tild3539-3161-4432-a336-363534366462/-/format/webp/7651a7d5-3f5d-4080-a.jpg.webp'
+    ]
+  }
+};
+
+var _awIdx = {};
+
+function updateAwningPreview(type) {
+  var data = AWNING_PREVIEWS[type] || AWNING_PREVIEWS.standard;
+  var svgEl = document.getElementById('awningPreviewSvg');
+  var labelEl = document.getElementById('awningPreviewLabel');
+  var descEl = document.getElementById('awningPreviewDesc');
+  if (labelEl) labelEl.textContent = data.label;
+  if (descEl) descEl.textContent = data.desc;
+  if (!svgEl) return;
+
+  // Строим карусель через DOM
+  svgEl.textContent = '';
+  var count = data.images.length;
+  _awIdx[type] = 0;
+
+  var carousel = document.createElement('div');
+  carousel.className = 'aw-carousel';
+  carousel.style.cssText = 'position:relative;overflow:hidden;border-radius:6px;height:280px';
+
+  var slides = document.createElement('div');
+  slides.className = 'aw-slides';
+  slides.style.cssText = 'display:flex;transition:transform 0.4s ease;height:100%;will-change:transform';
+  slides.dataset.i = '0';
+
+  data.images.forEach(function(src) {
+    var img = document.createElement('img');
+    img.src = src;
+    img.alt = data.label;
+    img.style.cssText = 'min-width:100%;height:280px;object-fit:cover;flex-shrink:0';
+    img.onerror = function() { this.style.display = 'none'; };
+    slides.appendChild(img);
+  });
+  carousel.appendChild(slides);
+
+  // Кнопки
+  var prev = document.createElement('button');
+  prev.style.cssText = 'position:absolute;left:6px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.45);border:none;color:#fff;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center';
+  prev.textContent = '‹';
+  prev.addEventListener('click', function() {
+    var i = parseInt(slides.dataset.i || '0');
+    i = (i - 1 + count) % count;
+    slides.style.transform = 'translateX(-' + i + '00%)';
+    slides.dataset.i = String(i);
+    updateDots(dotsEl, i, count);
+  });
+
+  var next = document.createElement('button');
+  next.style.cssText = 'position:absolute;right:6px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.45);border:none;color:#fff;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center';
+  next.textContent = '›';
+  next.addEventListener('click', function() {
+    var i = parseInt(slides.dataset.i || '0');
+    i = (i + 1) % count;
+    slides.style.transform = 'translateX(-' + i + '00%)';
+    slides.dataset.i = String(i);
+    updateDots(dotsEl, i, count);
+  });
+
+  carousel.appendChild(prev);
+  carousel.appendChild(next);
+
+  // Точки
+  var dotsEl = document.createElement('div');
+  dotsEl.style.cssText = 'position:absolute;bottom:6px;left:50%;transform:translateX(-50%);display:flex;gap:4px';
+  for (var j = 0; j < count; j++) {
+    (function(idx) {
+      var dot = document.createElement('span');
+      dot.style.cssText = 'width:6px;height:6px;border-radius:50%;display:inline-block;cursor:pointer;background:' + (idx === 0 ? '#fff' : 'rgba(255,255,255,0.5)');
+      dot.addEventListener('click', function() {
+        slides.style.transform = 'translateX(-' + idx + '00%)';
+        slides.dataset.i = String(idx);
+        updateDots(dotsEl, idx, count);
+      });
+      dotsEl.appendChild(dot);
+    })(j);
+  }
+  carousel.appendChild(dotsEl);
+  svgEl.appendChild(carousel);
+}
+
+function updateDots(dotsEl, active, count) {
+  var dots = dotsEl.children;
+  for (var k = 0; k < count; k++) {
+    if (dots[k]) dots[k].style.background = k === active ? '#fff' : 'rgba(255,255,255,0.5)';
+  }
+}
+</script>
+
+<!-- resize_messenger для Tilda iframe -->
+<script src="/static/js/resize_messenger.js"></script>
+<!-- Основная логика калькулятора (без секретов) -->
+<script src="/static/js/calculator.js"></script>
+
+{% if ym_id %}
+<!-- Яндекс.Метрика -->
+<script type="text/javascript">
+(function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+m[i].l=1*new Date();
+for(var j=0;j<document.scripts.length;j++){if(document.scripts[j].src===r){return;}}
+k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
+(window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
+ym({{ ym_id }}, "init", { clickmap:true, trackLinks:true, accurateTrackBounce:true });
+</script>
+<noscript><div><img src="https://mc.yandex.ru/watch/{{ ym_id }}" style="position:absolute;left:-9999px;" alt="" /></div></noscript>
+{% endif %}
 </body>
 </html>

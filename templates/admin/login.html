@@ -2,10 +2,32 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Вход — Админ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Вход — Маркизы Admin</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#1a2744;font-family:'Arial',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center}
+    .card{background:#fff;border-radius:12px;padding:40px 36px;width:100%;max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,0.25)}
+    h1{font-size:20px;font-weight:700;color:#1a2744;margin-bottom:6px}
+    .sub{font-size:13px;color:#6b7a99;margin-bottom:28px}
+    label{display:block;font-size:12px;font-weight:600;color:#6b7a99;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px}
+    input[type=password]{width:100%;padding:11px 14px;border:1.5px solid #dde3f0;border-radius:8px;font-size:15px;color:#1a2744;outline:none;transition:border-color 0.2s}
+    input[type=password]:focus{border-color:#e8622a;box-shadow:0 0 0 3px rgba(232,98,42,0.1)}
+    .err{margin-top:10px;font-size:13px;color:#e8622a;font-weight:600}
+    button{margin-top:20px;width:100%;padding:13px;background:#1a2744;border:none;border-radius:8px;font-size:15px;font-weight:700;color:#fff;cursor:pointer;transition:background 0.2s}
+    button:hover{background:#243057}
+  </style>
 </head>
 <body>
-  {# TODO Фаза 6: форма входа в админ-панель #}
-  <p>Вход — в разработке (Фаза 6)</p>
+  <div class="card">
+    <h1>Панель управления</h1>
+    <div class="sub">Калькулятор маркиз — только для администратора</div>
+    <form method="post" action="/admin/login">
+      <label for="password">Пароль</label>
+      <input type="password" id="password" name="password" autofocus autocomplete="current-password" placeholder="••••••••">
+      {% if error %}<div class="err">{{ error }}</div>{% endif %}
+      <button type="submit">Войти</button>
+    </form>
+  </div>
 </body>
 </html>
