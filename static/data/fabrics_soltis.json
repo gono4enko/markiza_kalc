@@ -1,0 +1,224 @@
+{
+  "soltis86": {
+    "label": "Soltis 86",
+    "of": null,
+    "fabrics": [
+      {
+        "article": "soltis-86-50690",
+        "short": "50690",
+        "thumb": "/static/img/fabrics/soltis86/thumbs/50690.jpg",
+        "full": "/static/img/fabrics/soltis86/50690.webp"
+      },
+      {
+        "article": "soltis-86-2044",
+        "short": "2044",
+        "thumb": "/static/img/fabrics/soltis86/thumbs/2044.jpg",
+        "full": "/static/img/fabrics/soltis86/2044.webp"
+      },
+      {
+        "article": "soltis-86-2171",
+        "short": "2171",
+        "thumb": "/static/img/fabrics/soltis86/thumbs/2171.jpg",
+        "full": "/static/img/fabrics/soltis86/2171.webp"
+      },
+      {
+        "article": "soltis-86-2175",
+        "short": "2175",
+        "thumb": "/static/img/fabrics/soltis86/thumbs/2175.jpg",
+        "full": "/static/img/fabrics/soltis86/2175.webp"
+      },
+      {
+        "article": "soltis-86-2135",
+        "short": "2135",
+        "thumb": "/static/img/fabrics/soltis86/thumbs/2135.jpg",
+        "full": "/static/img/fabrics/soltis86/2135.webp"
+      },
+      {
+        "article": "soltis-86-2012",
+        "short": "2012",
+        "thumb": "/static/img/fabrics/soltis86/thumbs/2012.jpg",
+        "full": "/static/img/fabrics/soltis86/2012.webp"
+      },
+      {
+        "article": "soltis-86-2043",
+        "short": "2043",
+        "thumb": "/static/img/fabrics/soltis86/thumbs/2043.jpg",
+        "full": "/static/img/fabrics/soltis86/2043.webp"
+      },
+      {
+        "article": "soltis-86-2047",
+        "short": "2047",
+        "thumb": "/static/img/fabrics/soltis86/thumbs/2047.jpg",
+        "full": "/static/img/fabrics/soltis86/2047.webp"
+      },
+      {
+        "article": "soltis-86-2167",
+        "short": "2167",
+        "thumb": "/static/img/fabrics/soltis86/thumbs/2167.jpg",
+        "full": "/static/img/fabrics/soltis86/2167.webp"
+      },
+      {
+        "article": "soltis-86-51176",
+        "short": "51176",
+        "thumb": "/static/img/fabrics/soltis86/thumbs/51176.jpg",
+        "full": "/static/img/fabrics/soltis86/51176.webp"
+      }
+    ]
+  },
+  "soltis96": {
+    "label": "Soltis 96",
+    "of": "O.F. 3%",
+    "fabrics": [
+      {
+        "article": "96-8102",
+        "short": "8102",
+        "thumb": "/static/img/fabrics/soltis96/thumbs/8102.jpg",
+        "full": "/static/img/fabrics/soltis96/8102.webp"
+      },
+      {
+        "article": "96-1103",
+        "short": "1103",
+        "thumb": "/static/img/fabrics/soltis96/thumbs/1103.jpg",
+        "full": "/static/img/fabrics/soltis96/1103.webp"
+      },
+      {
+        "article": "96-8861",
+        "short": "8861",
+        "thumb": "/static/img/fabrics/soltis96/thumbs/8861.jpg",
+        "full": "/static/img/fabrics/soltis96/8861.webp"
+      },
+      {
+        "article": "96-2135",
+        "short": "2135",
+        "thumb": "/static/img/fabrics/soltis96/thumbs/2135.jpg",
+        "full": "/static/img/fabrics/soltis96/2135.webp"
+      },
+      {
+        "article": "96-2171",
+        "short": "2171",
+        "thumb": "/static/img/fabrics/soltis96/thumbs/2171.jpg",
+        "full": "/static/img/fabrics/soltis96/2171.webp"
+      },
+      {
+        "article": "96-2043",
+        "short": "2043",
+        "thumb": "/static/img/fabrics/soltis96/thumbs/2043.jpg",
+        "full": "/static/img/fabrics/soltis96/2043.webp"
+      },
+      {
+        "article": "96-2047",
+        "short": "2047",
+        "thumb": "/static/img/fabrics/soltis96/thumbs/2047.jpg",
+        "full": "/static/img/fabrics/soltis96/2047.webp"
+      },
+      {
+        "article": "96-8450",
+        "short": "8450",
+        "thumb": "/static/img/fabrics/soltis96/thumbs/8450.jpg",
+        "full": "/static/img/fabrics/soltis96/8450.webp"
+      }
+    ]
+  },
+  "soltisW88": {
+    "label": "Soltis W88",
+    "of": null,
+    "fabrics": [
+      {
+        "article": "W88-8102",
+        "short": "8102",
+        "thumb": "/static/img/fabrics/soltisW88/thumbs/8102.jpg",
+        "full": "/static/img/fabrics/soltisW88/8102.webp"
+      },
+      {
+        "article": "W88-1103",
+        "short": "1103",
+        "thumb": "/static/img/fabrics/soltisW88/thumbs/1103.jpg",
+        "full": "/static/img/fabrics/soltisW88/1103.webp"
+      },
+      {
+        "article": "W88-8861",
+        "short": "8861",
+        "thumb": "/static/img/fabrics/soltisW88/thumbs/8861.jpg",
+        "full": "/static/img/fabrics/soltisW88/8861.webp"
+      },
+      {
+        "article": "W88-2171",
+        "short": "2171",
+        "thumb": "/static/img/fabrics/soltisW88/thumbs/2171.jpg",
+        "full": "/static/img/fabrics/soltisW88/2171.webp"
+      },
+      {
+        "article": "W88-2047",
+        "short": "2047",
+        "thumb": "/static/img/fabrics/soltisW88/thumbs/2047.jpg",
+        "full": "/static/img/fabrics/soltisW88/2047.webp"
+      }
+    ]
+  },
+  "soltisW96": {
+    "label": "Soltis W96",
+    "of": "O.F. 3%",
+    "fabrics": [
+      {
+        "article": "W96-8102",
+        "short": "8102",
+        "thumb": "/static/img/fabrics/soltisW96/thumbs/8102.jpg",
+        "full": "/static/img/fabrics/soltisW96/8102.webp"
+      },
+      {
+        "article": "W96-1103",
+        "short": "1103",
+        "thumb": "/static/img/fabrics/soltisW96/thumbs/1103.jpg",
+        "full": "/static/img/fabrics/soltisW96/1103.webp"
+      },
+      {
+        "article": "W96-8861",
+        "short": "8861",
+        "thumb": "/static/img/fabrics/soltisW96/thumbs/8861.jpg",
+        "full": "/static/img/fabrics/soltisW96/8861.webp"
+      },
+      {
+        "article": "W96-2171",
+        "short": "2171",
+        "thumb": "/static/img/fabrics/soltisW96/thumbs/2171.jpg",
+        "full": "/static/img/fabrics/soltisW96/2171.webp"
+      },
+      {
+        "article": "W96-2047",
+        "short": "2047",
+        "thumb": "/static/img/fabrics/soltisW96/thumbs/2047.jpg",
+        "full": "/static/img/fabrics/soltisW96/2047.webp"
+      }
+    ]
+  },
+  "stam6002": {
+    "label": "Stam 6002",
+    "of": "Blackout",
+    "fabrics": [
+      {
+        "article": "6002-20213",
+        "short": "20213",
+        "thumb": "/static/img/fabrics/stam6002/thumbs/20213.jpg",
+        "full": "/static/img/fabrics/stam6002/20213.webp"
+      },
+      {
+        "article": "6002-20211",
+        "short": "20211",
+        "thumb": "/static/img/fabrics/stam6002/thumbs/20211.jpg",
+        "full": "/static/img/fabrics/stam6002/20211.webp"
+      },
+      {
+        "article": "6002-20209",
+        "short": "20209",
+        "thumb": "/static/img/fabrics/stam6002/thumbs/20209.jpg",
+        "full": "/static/img/fabrics/stam6002/20209.webp"
+      },
+      {
+        "article": "6002-20205",
+        "short": "20205",
+        "thumb": "/static/img/fabrics/stam6002/thumbs/20205.jpg",
+        "full": "/static/img/fabrics/stam6002/20205.webp"
+      }
+    ]
+  }
+}

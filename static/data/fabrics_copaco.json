@@ -1,0 +1,176 @@
+{
+  "copacoSerge5": {
+    "label": "Copaco Serge",
+    "of": "O.F. 5%",
+    "fabrics": [
+      {
+        "article": "White-White-002002",
+        "display": "White-White",
+        "thumb": "/static/img/fabrics/copacoSerge5/thumbs/White-White-002002.jpg",
+        "full": "/static/img/fabrics/copacoSerge5/White-White-002002.webp"
+      },
+      {
+        "article": "White-Pearl-grey-002007",
+        "display": "White-Pearl-grey",
+        "thumb": "/static/img/fabrics/copacoSerge5/thumbs/White-Pearl-grey-002007.jpg",
+        "full": "/static/img/fabrics/copacoSerge5/White-Pearl-grey-002007.webp"
+      },
+      {
+        "article": "Linen-White-008002",
+        "display": "Linen-White",
+        "thumb": "/static/img/fabrics/copacoSerge5/thumbs/Linen-White-008002.jpg",
+        "full": "/static/img/fabrics/copacoSerge5/Linen-White-008002.webp"
+      },
+      {
+        "article": "Linen-Linen-008008",
+        "display": "Linen-Linen",
+        "thumb": "/static/img/fabrics/copacoSerge5/thumbs/Linen-Linen-008008.jpg",
+        "full": "/static/img/fabrics/copacoSerge5/Linen-Linen-008008.webp"
+      },
+      {
+        "article": "Pearl-grey-Pearl-grey-007007",
+        "display": "Pearl-grey",
+        "thumb": "/static/img/fabrics/copacoSerge5/thumbs/Pearl-grey-Pearl-grey-007007.jpg",
+        "full": "/static/img/fabrics/copacoSerge5/Pearl-grey-Pearl-grey-007007.webp"
+      },
+      {
+        "article": "Sandstone-033033",
+        "display": "Sandstone",
+        "thumb": "/static/img/fabrics/copacoSerge5/thumbs/Sandstone-033033.jpg",
+        "full": "/static/img/fabrics/copacoSerge5/Sandstone-033033.webp"
+      },
+      {
+        "article": "Sand-Sand-003003",
+        "display": "Sand",
+        "thumb": "/static/img/fabrics/copacoSerge5/thumbs/Sand-Sand-003003.jpg",
+        "full": "/static/img/fabrics/copacoSerge5/Sand-Sand-003003.webp"
+      },
+      {
+        "article": "Grey-Grey-001001",
+        "display": "Grey-Grey",
+        "thumb": "/static/img/fabrics/copacoSerge5/thumbs/Grey-Grey-001001.jpg",
+        "full": "/static/img/fabrics/copacoSerge5/Grey-Grey-001001.webp"
+      },
+      {
+        "article": "Grey-Charcoal-001010",
+        "display": "Grey-Charcoal",
+        "thumb": "/static/img/fabrics/copacoSerge5/thumbs/Grey-Charcoal-001010.jpg",
+        "full": "/static/img/fabrics/copacoSerge5/Grey-Charcoal-001010.webp"
+      },
+      {
+        "article": "Charcoal-Bronze-001011",
+        "display": "Charcoal-Bronze",
+        "thumb": "/static/img/fabrics/copacoSerge5/thumbs/Charcoal-Bronze-001011.jpg",
+        "full": "/static/img/fabrics/copacoSerge5/Charcoal-Bronze-001011.webp"
+      },
+      {
+        "article": "Charcoal-Charcoal-010010",
+        "display": "Charcoal",
+        "thumb": "/static/img/fabrics/copacoSerge5/thumbs/Charcoal-Charcoal-010010.jpg",
+        "full": "/static/img/fabrics/copacoSerge5/Charcoal-Charcoal-010010.webp"
+      }
+    ]
+  },
+  "copacoSerge1": {
+    "label": "Copaco Serge",
+    "of": "O.F. 1%",
+    "fabrics": [
+      {
+        "article": "White-002002",
+        "display": "White",
+        "thumb": "/static/img/fabrics/copacoSerge1/thumbs/White-002002.jpg",
+        "full": "/static/img/fabrics/copacoSerge1/White-002002.webp"
+      },
+      {
+        "article": "Pearl-Grey-007007",
+        "display": "Pearl-Grey",
+        "thumb": "/static/img/fabrics/copacoSerge1/thumbs/Pearl-Grey-007007.jpg",
+        "full": "/static/img/fabrics/copacoSerge1/Pearl-Grey-007007.webp"
+      },
+      {
+        "article": "Linen-008008",
+        "display": "Linen",
+        "thumb": "/static/img/fabrics/copacoSerge1/thumbs/Linen-008008.jpg",
+        "full": "/static/img/fabrics/copacoSerge1/Linen-008008.webp"
+      },
+      {
+        "article": "Pearl-Grey-002007",
+        "display": "Pearl-Grey-W",
+        "thumb": "/static/img/fabrics/copacoSerge1/thumbs/Pearl-Grey-002007.jpg",
+        "full": "/static/img/fabrics/copacoSerge1/Pearl-Grey-002007.webp"
+      },
+      {
+        "article": "Grey-001001",
+        "display": "Grey",
+        "thumb": "/static/img/fabrics/copacoSerge1/thumbs/Grey-001001.jpg",
+        "full": "/static/img/fabrics/copacoSerge1/Grey-001001.webp"
+      },
+      {
+        "article": "Charcoal-001010",
+        "display": "Charcoal",
+        "thumb": "/static/img/fabrics/copacoSerge1/thumbs/Charcoal-001010.jpg",
+        "full": "/static/img/fabrics/copacoSerge1/Charcoal-001010.webp"
+      }
+    ]
+  },
+  "copacoSolar": {
+    "label": "Copaco Solar",
+    "of": "O.F. 3%",
+    "fabrics": [
+      {
+        "article": "White-White-002002",
+        "display": "White-White",
+        "thumb": "/static/img/fabrics/copacoSolar/thumbs/White-White-002002.jpg",
+        "full": "/static/img/fabrics/copacoSolar/White-White-002002.webp"
+      },
+      {
+        "article": "Pearl-grey-Pearl-grey-007007",
+        "display": "Pearl-grey",
+        "thumb": "/static/img/fabrics/copacoSolar/thumbs/Pearl-grey-Pearl-grey-007007.jpg",
+        "full": "/static/img/fabrics/copacoSolar/Pearl-grey-Pearl-grey-007007.webp"
+      },
+      {
+        "article": "Grey-Grey-001001",
+        "display": "Grey-Grey",
+        "thumb": "/static/img/fabrics/copacoSolar/thumbs/Grey-Grey-001001.jpg",
+        "full": "/static/img/fabrics/copacoSolar/Grey-Grey-001001.webp"
+      },
+      {
+        "article": "Charcoal-Charcoal-001010",
+        "display": "Charcoal",
+        "thumb": "/static/img/fabrics/copacoSolar/thumbs/Charcoal-Charcoal-001010.jpg",
+        "full": "/static/img/fabrics/copacoSolar/Charcoal-Charcoal-001010.webp"
+      }
+    ]
+  },
+  "copacoLunar": {
+    "label": "Copaco Lunar",
+    "of": "O.F. 0%",
+    "fabrics": [
+      {
+        "article": "White-Silver-002002",
+        "display": "White-Silver",
+        "thumb": "/static/img/fabrics/copacoLunar/thumbs/White-Silver-002002.jpg",
+        "full": "/static/img/fabrics/copacoLunar/White-Silver-002002.webp"
+      },
+      {
+        "article": "Pearl-grey-Silver-007007",
+        "display": "Pearl-grey-Silver",
+        "thumb": "/static/img/fabrics/copacoLunar/thumbs/Pearl-grey-Silver-007007.jpg",
+        "full": "/static/img/fabrics/copacoLunar/Pearl-grey-Silver-007007.webp"
+      },
+      {
+        "article": "Grey-Silver-001001",
+        "display": "Grey-Silver",
+        "thumb": "/static/img/fabrics/copacoLunar/thumbs/Grey-Silver-001001.jpg",
+        "full": "/static/img/fabrics/copacoLunar/Grey-Silver-001001.webp"
+      },
+      {
+        "article": "Charcoal-Silver-001010",
+        "display": "Charcoal-Silver",
+        "thumb": "/static/img/fabrics/copacoLunar/thumbs/Charcoal-Silver-001010.jpg",
+        "full": "/static/img/fabrics/copacoLunar/Charcoal-Silver-001010.webp"
+      }
+    ]
+  }
+}

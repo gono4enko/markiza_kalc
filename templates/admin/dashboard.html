@@ -40,6 +40,41 @@
     .empty{padding:24px;text-align:center;color:#6b7a99;font-size:14px}
     .reload-btn{font-size:12px;padding:5px 12px;background:#f4f6fb;border:1px solid #dde3f0;border-radius:6px;cursor:pointer;color:#1a2744;font-weight:600}
     .reload-btn:hover{background:#dde3f0}
+    /* OCR */
+    .ocr-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px 18px}
+    @media(max-width:640px){.ocr-grid{grid-template-columns:1fr}}
+    .ocr-field label{font-size:12px;font-weight:700;color:#6b7a99;text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:6px}
+    .ocr-field select,.ocr-field input[type=file]{width:100%;padding:8px 12px;border:1.5px solid #dde3f0;border-radius:8px;font-size:13px;background:#fff;outline:none}
+    .ocr-field select:focus,.ocr-field input[type=file]:focus{border-color:#e8622a}
+    .ocr-drop{border:2px dashed #dde3f0;border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:border-color 0.2s,background 0.2s;background:#fafbfd}
+    .ocr-drop:hover,.ocr-drop.drag-over{border-color:#e8622a;background:#fff7f4}
+    .ocr-drop .drop-icon{font-size:28px;margin-bottom:6px}
+    .ocr-drop p{font-size:13px;color:#6b7a99;margin:0}
+    .ocr-drop .drop-hint{font-size:11px;color:#aab2c8;margin-top:4px}
+    .ocr-thumb{max-width:120px;max-height:80px;border-radius:6px;border:1px solid #dde3f0;display:none;margin-top:10px}
+    .ocr-actions{padding:0 18px 16px;display:flex;align-items:center;gap:12px}
+    .spinner{width:16px;height:16px;border:2px solid #dde3f0;border-top-color:#e8622a;border-radius:50%;animation:spin 0.7s linear infinite;display:none}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .ocr-status{font-size:13px;color:#6b7a99}
+    .ocr-status.error{color:#c0392b}
+    .ocr-status.success{color:#1a7a4a}
+    /* Preview table */
+    #ocrPreview{display:none;padding:16px 18px}
+    .preview-meta{display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap}
+    .preview-meta .meta-item{font-size:12px;color:#6b7a99}
+    .preview-meta .meta-item strong{color:#1a2744;font-size:14px}
+    .preview-meta .badge-green{background:#e6faf0;color:#1a7a4a;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700}
+    .preview-meta .badge-orange{background:#fff3ec;color:#e8622a;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700}
+    .price-table-wrap{overflow-x:auto;margin-bottom:16px}
+    .price-table{border-collapse:collapse;font-size:12px;min-width:400px}
+    .price-table th{background:#1a2744;color:#fff;padding:8px 10px;text-align:center;font-size:11px;font-weight:700;white-space:nowrap}
+    .price-table th.row-header{background:#2c3e6b;text-align:left}
+    .price-table td{padding:6px 8px;border:1px solid #e8ecf5;text-align:center}
+    .price-table tr:hover td{background:#f0f4ff}
+    .price-table input.cell-price{width:70px;padding:3px 6px;border:1.5px solid transparent;border-radius:5px;font-size:12px;text-align:center;background:transparent;outline:none;transition:border-color 0.15s}
+    .price-table input.cell-price:focus{border-color:#e8622a;background:#fff}
+    .price-table input.cell-price.changed{border-color:#e8622a;background:#fff7f4}
+    .apply-bar{display:flex;align-items:center;gap:12px;padding-top:8px;border-top:1px solid #dde3f0}
   </style>
 </head>
 <body>
@@ -97,7 +132,66 @@
       </form>
     </div>
     <div style="padding:16px 18px;font-size:13px;color:#6b7a99">
-      Файл: <code>static/data/awning_pricing.json</code> — редактируйте через SFTP/SSH, затем нажмите «Перечитать».
+      Файл: <code>static/data/awning_pricing.json</code> — редактируйте через SFTP/SSH или загрузите фото ниже.
+    </div>
+  </div>
+
+  <!-- OCR прайсов из фото -->
+  <div class="section">
+    <div class="section-header">
+      Загрузка прайса из фотографии
+      <span style="font-size:11px;color:#aab2c8;font-weight:400;text-transform:none">Claude Vision OCR</span>
+    </div>
+
+    <div class="ocr-grid">
+      <!-- Выбор таблицы -->
+      <div class="ocr-field">
+        <label>Таблица для обновления</label>
+        <select id="ocrTableSelect">
+          <option value="PRICES_OPEN">PRICES_OPEN — Открытая локтевая</option>
+          <option value="PRICES_SEMI">PRICES_SEMI — Полукассетная</option>
+          <option value="PRICES_CASSETTE">PRICES_CASSETTE — Кассетная</option>
+          <option value="PRICES_G400">PRICES_G400 — G400 Italy открытая (Gaviota)</option>
+          <option value="PRICES_G450">PRICES_G450 — G450 Desert кассетная (Gaviota)</option>
+          <option value="ZIP100">ZIP100 — Вертикальная ZIP 100</option>
+          <option value="ZIP130">ZIP130 — Вертикальная ZIP 130</option>
+        </select>
+      </div>
+
+      <!-- Загрузка изображения -->
+      <div class="ocr-field">
+        <label>Фото прайс-таблицы</label>
+        <div class="ocr-drop" id="ocrDrop">
+          <div class="drop-icon">📷</div>
+          <p>Перетащите сюда или нажмите для выбора</p>
+          <p class="drop-hint">JPG, PNG, WEBP · до 20 МБ</p>
+          <img id="ocrThumb" class="ocr-thumb" alt="preview">
+        </div>
+        <input type="file" id="ocrFileInput" accept="image/*" style="display:none">
+      </div>
+    </div>
+
+    <div class="ocr-actions">
+      <button class="btn btn-orange" id="ocrStartBtn" disabled>
+        🔍 Распознать прайс
+      </button>
+      <div class="spinner" id="ocrSpinner"></div>
+      <span class="ocr-status" id="ocrStatus"></span>
+    </div>
+
+    <!-- Предпросмотр результата OCR -->
+    <div id="ocrPreview">
+      <div class="preview-meta" id="previewMeta"></div>
+      <div class="price-table-wrap">
+        <table class="price-table" id="previewTable"></table>
+      </div>
+      <div class="apply-bar">
+        <button class="btn btn-orange" id="applyBtn">
+          ✅ Применить к прайсу
+        </button>
+        <div class="spinner" id="applySpinner"></div>
+        <span class="ocr-status" id="applyStatus"></span>
+      </div>
     </div>
   </div>
 
@@ -143,5 +237,222 @@
   </div>
 
 </div>
+
+<script>
+(function () {
+  'use strict';
+
+  function clearEl(el) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+  }
+
+  /* ── DOM refs ── */
+  const drop       = document.getElementById('ocrDrop');
+  const fileInput  = document.getElementById('ocrFileInput');
+  const thumb      = document.getElementById('ocrThumb');
+  const startBtn   = document.getElementById('ocrStartBtn');
+  const spinner    = document.getElementById('ocrSpinner');
+  const statusEl   = document.getElementById('ocrStatus');
+  const previewSection = document.getElementById('ocrPreview');
+  const previewMeta    = document.getElementById('previewMeta');
+  const previewTable   = document.getElementById('previewTable');
+  const applyBtn   = document.getElementById('applyBtn');
+  const applySpinner  = document.getElementById('applySpinner');
+  const applyStatus   = document.getElementById('applyStatus');
+
+  let selectedFile = null;
+  let ocrResult    = null;
+
+  /* ── File selection ── */
+  drop.addEventListener('click', () => fileInput.click());
+
+  drop.addEventListener('dragover', e => {
+    e.preventDefault();
+    drop.classList.add('drag-over');
+  });
+  drop.addEventListener('dragleave', () => drop.classList.remove('drag-over'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault();
+    drop.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) setFile(file);
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) setFile(fileInput.files[0]);
+  });
+
+  function setFile(file) {
+    selectedFile = file;
+    startBtn.disabled = false;
+    thumb.style.display = 'block';
+    thumb.src = URL.createObjectURL(file);
+    setStatus(statusEl, '', '');
+    previewSection.style.display = 'none';
+    ocrResult = null;
+  }
+
+  function setStatus(el, msg, type) {
+    el.textContent = msg;
+    el.className = 'ocr-status' + (type ? ' ' + type : '');
+  }
+
+  /* ── OCR запрос ── */
+  startBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+
+    const tableName = document.getElementById('ocrTableSelect').value;
+    const fd = new FormData();
+    fd.append('table_name', tableName);
+    fd.append('image', selectedFile);
+
+    startBtn.disabled = true;
+    spinner.style.display = 'inline-block';
+    setStatus(statusEl, 'Отправляем изображение в Claude Vision…', '');
+    previewSection.style.display = 'none';
+
+    try {
+      const resp = await fetch('/admin/parse-price-image', { method: 'POST', body: fd });
+      const data = await resp.json();
+      if (!resp.ok || data.error) throw new Error(data.error || 'HTTP ' + resp.status);
+
+      ocrResult = data;
+      renderPreview(data);
+
+      const corr = data.stats.corrections;
+      setStatus(statusEl,
+        '✓ Распознано: ' + data.stats.cells + ' ячеек'
+        + (corr ? ', исправлено: ' + corr : ''),
+        'success');
+    } catch (err) {
+      setStatus(statusEl, 'Ошибка: ' + err.message, 'error');
+    } finally {
+      spinner.style.display = 'none';
+      startBtn.disabled = false;
+    }
+  });
+
+  /* ── Рендер предпросмотра ── */
+  function renderPreview(result) {
+    const { data, stats } = result;
+    const { widths, projections, prices } = data;
+
+    /* Мета */
+    clearEl(previewMeta);
+    [
+      ['Таблица', result.table_label],
+      ['Ширин', stats.widths],
+      ['Вылетов', stats.projections],
+      ['Ячеек', stats.cells],
+    ].forEach(function(pair) {
+      const div = document.createElement('div');
+      div.className = 'meta-item';
+      const lbl = document.createTextNode(pair[0] + ': ');
+      const strong = document.createElement('strong');
+      strong.textContent = pair[1];
+      div.appendChild(lbl);
+      div.appendChild(strong);
+      previewMeta.appendChild(div);
+    });
+
+    const badge = document.createElement('span');
+    if (stats.corrections > 0) {
+      badge.className = 'badge-orange';
+      badge.textContent = 'Исправлено: ' + stats.corrections;
+    } else {
+      badge.className = 'badge-green';
+      badge.textContent = 'Верификация пройдена';
+    }
+    previewMeta.appendChild(badge);
+
+    /* Таблица */
+    clearEl(previewTable);
+
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+
+    const corner = document.createElement('th');
+    corner.className = 'row-header';
+    corner.textContent = 'Ш \\ В (м)';
+    headerRow.appendChild(corner);
+
+    projections.forEach(function(p) {
+      const th = document.createElement('th');
+      th.textContent = p;
+      headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    previewTable.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    widths.forEach(function(w) {
+      const tr = document.createElement('tr');
+      const rowTh = document.createElement('th');
+      rowTh.className = 'row-header';
+      rowTh.textContent = w;
+      tr.appendChild(rowTh);
+
+      projections.forEach(function(p) {
+        const td = document.createElement('td');
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.className = 'cell-price';
+        input.value = (prices[w] && prices[w][p] !== undefined) ? prices[w][p] : '';
+        input.dataset.w = w;
+        input.dataset.p = p;
+        input.addEventListener('input', function() { input.classList.add('changed'); });
+        td.appendChild(input);
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    previewTable.appendChild(tbody);
+
+    previewSection.style.display = 'block';
+    setStatus(applyStatus, '', '');
+  }
+
+  /* ── Собрать цены из отредактированной таблицы ── */
+  function collectPrices() {
+    const prices = {};
+    previewTable.querySelectorAll('input.cell-price').forEach(function(input) {
+      const w = input.dataset.w;
+      const p = input.dataset.p;
+      if (!prices[w]) prices[w] = {};
+      prices[w][p] = parseFloat(input.value) || 0;
+    });
+    return prices;
+  }
+
+  /* ── Применить к прайсу ── */
+  applyBtn.addEventListener('click', async () => {
+    if (!ocrResult) return;
+
+    const payload = { table_name: ocrResult.table_name, prices: collectPrices() };
+
+    applyBtn.disabled = true;
+    applySpinner.style.display = 'inline-block';
+    setStatus(applyStatus, 'Применяем…', '');
+
+    try {
+      const resp = await fetch('/admin/apply-parsed-prices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await resp.json();
+      if (!resp.ok || data.error) throw new Error(data.error || 'HTTP ' + resp.status);
+
+      setStatus(applyStatus,
+        '✓ Сохранено ' + data.cells_written + ' ячеек в ' + data.table_name + '. Кэш сброшен.',
+        'success');
+    } catch (err) {
+      setStatus(applyStatus, 'Ошибка: ' + err.message, 'error');
+    } finally {
+      applySpinner.style.display = 'none';
+      applyBtn.disabled = false;
+    }
+  });
+}());
+</script>
 </body>
 </html>

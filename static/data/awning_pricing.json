@@ -1,6 +1,9 @@
 {
   "_comment": "Прайс-таблицы маркиз. Ключи — стандартизованные размеры в метрах (шаг 0.5 м). Значения умножаются на euro_rate для перевода в рубли.",
   "euro_rate": 100,
+  "use_decolife_open_elbow": true,
+  "use_decolife_semi_elbow": true,
+  "use_decolife_cassette_elbow": true,
 
   "PRICES_OPEN": {
     "3.0": {"1.5": 545, "2.0": 595, "2.5": 650, "3.0": 715, "3.5": 790},
@@ -84,7 +87,7 @@
   },
 
   "_frame_surcharges": {
-    "_comment": "Наценки на цвет каркаса от базовой цены",
+    "_comment": "Справочно: локтевая — brown/anthracite +5%, custom +12%. Витринная G400/G450 — в calculator.py (ral9005/8014/9016 0%, 7016/9T08 +10%, спец. +12%)",
     "white":      0.00,
     "brown":      0.05,
     "anthracite": 0.05,
