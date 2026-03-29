@@ -14,7 +14,8 @@ jobs:
           host:     ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key:      ${{ secrets.SSH_PRIVATE_KEY }}
-          port:     ${{ secrets.SSH_PORT }}
+          # Пустой секрет ломал бы шаг — подставляем 22
+          port:     ${{ secrets.SSH_PORT != '' && secrets.SSH_PORT || 22 }}
           script: |
             set -e
             cd /var/www/awning-calculator

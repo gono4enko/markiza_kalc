@@ -2,6 +2,7 @@
 Flask-приложение калькулятора маркиз.
 """
 
+import base64
 import hashlib
 import json
 import os
@@ -29,6 +30,9 @@ from calculator import calculate, get_pricing, reload_pricing
 from pdf_generator import generate_pdf
 
 load_dotenv()
+
+# Vision/OCR: см. https://docs.anthropic.com/en/docs/about-claude/models
+ANTHROPIC_OCR_MODEL = os.environ.get("ANTHROPIC_OCR_MODEL", "claude-sonnet-4-6")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
@@ -93,6 +97,25 @@ def _save_lead(phone: str, city: str, calc_text: str, channel: str = "callback")
                 cur.execute(
                     "INSERT INTO leads (phone, city, calc_text, channel) VALUES (%s, %s, %s, %s)",
                     (phone, city, calc_text, channel),
+                )
+    except Exception:
+        pass
+    finally:
+        conn.close()
+
+
+def _save_calc_history(params_hash: str, result: dict) -> None:
+    """Сохраняет результат расчёта для аналитики (таблица calc_history)."""
+    conn = _get_db()
+    if not conn:
+        return
+    try:
+        payload = json.dumps(result, ensure_ascii=False)
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO calc_history (params_hash, result_json) VALUES (%s, %s::jsonb)",
+                    (params_hash, payload),
                 )
     except Exception:
         pass
@@ -176,6 +199,7 @@ def api_calculate():
         return jsonify({"error": str(exc)}), 422
 
     _cache_set(key, result)
+    threading.Thread(target=_save_calc_history, args=(key, result), daemon=True).start()
     return jsonify(result)
 
 
@@ -237,13 +261,24 @@ def api_pdf():
     if not params:
         return jsonify({"error": "Пустой запрос"}), 400
     try:
+        # Автоматическое переключение ZIP 100 → ZIP 130 при превышении лимитов
+        if (params.get("awning_type") == "zip" and params.get("config") == "zip100"):
+            w = float(params.get("width", 0))
+            h = float(params.get("height", 0))
+            if w > 4.0 or h > 3.5:
+                params = dict(params)
+                params["config"] = "zip130"
         result = calculate(params)
-        buf = generate_pdf(result)
+        from datetime import datetime
+        kp_date = datetime.now().strftime("%d.%m.%Y_%H-%M-%S")
+        buf = generate_pdf(result, params=params)
+        awning_type = params.get("awning_type", "awning")
+        filename = f"КП_{awning_type}_{kp_date}.pdf"
         return send_file(
             buf,
             mimetype="application/pdf",
             as_attachment=True,
-            download_name="awning_calculation.pdf",
+            download_name=filename,
         )
     except Exception as exc:
         return jsonify({"error": str(exc)}), 422
@@ -336,6 +371,333 @@ def admin_update_euro_rate():
     except Exception as exc:
         return jsonify({"error": str(exc)}), 400
     return redirect(url_for("admin_dashboard"))
+
+
+# ---------------------------------------------------------------------------
+# OCR прайсов через Claude Vision
+# ---------------------------------------------------------------------------
+
+# Справочник таблиц: имя → описание для промпта
+_PRICE_TABLES = {
+    "PRICES_OPEN": {
+        "name": "Открытая локтевая маркиза",
+        "row_label": "ширина (ширина)",
+        "col_label": "вылет (вынос)",
+        "expected_rows": "3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0",
+        "expected_cols": "1.5, 2.0, 2.5, 3.0, 3.5",
+    },
+    "PRICES_SEMI": {
+        "name": "Полукассетная локтевая маркиза",
+        "row_label": "ширина",
+        "col_label": "вылет",
+        "expected_rows": "3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0",
+        "expected_cols": "1.5, 2.0, 2.5, 3.0, 3.5",
+    },
+    "PRICES_CASSETTE": {
+        "name": "Кассетная локтевая маркиза",
+        "row_label": "ширина",
+        "col_label": "вылет",
+        "expected_rows": "3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0",
+        "expected_cols": "1.5, 2.0, 2.5, 3.0, 3.5",
+    },
+    "PRICES_G400": {
+        "name": "Витринная G400 Italy — открытая (Gaviota)",
+        "row_label": "ширина",
+        "col_label": "вылет",
+        "expected_rows": "3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0",
+        "expected_cols": "0.8, 1.0, 1.4",
+    },
+    "PRICES_G450": {
+        "name": "Витринная G450 Desert — кассетная (Gaviota)",
+        "row_label": "ширина",
+        "col_label": "вылет",
+        "expected_rows": "3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0",
+        "expected_cols": "0.8, 1.0, 1.4",
+    },
+    "ZIP100": {
+        "name": "Вертикальная ZIP маркиза 100",
+        "row_label": "ширина",
+        "col_label": "высота",
+        "expected_rows": "1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0",
+        "expected_cols": "1.0, 1.5, 2.0, 2.5, 3.0, 3.5",
+    },
+    "ZIP130": {
+        "name": "Вертикальная ZIP маркиза 130",
+        "row_label": "ширина",
+        "col_label": "высота",
+        "expected_rows": "1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0",
+        "expected_cols": "1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0",
+    },
+}
+
+
+def _fmt_dim(v: str) -> str:
+    """Нормализует ключ размера: "3" → "3.0", "3.50" → "3.5"."""
+    return f"{float(str(v).strip()):.1f}"
+
+
+def _parse_price_int(v) -> int:
+    """Парсит цену: "4 512" → 4512, "4512.0" → 4512."""
+    s = str(v).replace(" ", "").replace("\u00a0", "").replace(",", ".")
+    return int(float(s))
+
+
+def _normalize_ocr(parsed: dict) -> dict:
+    """Нормализует результат OCR: ключи → "X.Y", цены → int, сортировка."""
+    widths_raw = parsed.get("widths", [])
+    projs_raw = parsed.get("projections", parsed.get("heights", []))
+    prices_raw = parsed.get("prices", {})
+
+    widths = sorted(set(_fmt_dim(w) for w in widths_raw), key=float)
+    projs = sorted(set(_fmt_dim(p) for p in projs_raw), key=float)
+
+    prices: dict[str, dict[str, int]] = {}
+    for w_raw, row in prices_raw.items():
+        w = _fmt_dim(w_raw)
+        prices[w] = {}
+        for p_raw, price in row.items():
+            p = _fmt_dim(p_raw)
+            try:
+                prices[w][p] = _parse_price_int(price)
+            except (ValueError, TypeError):
+                prices[w][p] = 0
+
+    return {"widths": widths, "projections": projs, "prices": prices}
+
+
+def _build_ocr_prompt(tinfo: dict) -> str:
+    return f"""You are a precise OCR engine for awning price tables.
+
+TASK: Extract ALL prices from this price table image with MAXIMUM accuracy.
+
+TABLE TYPE: {tinfo['name']}
+TABLE STRUCTURE:
+- LEFT column: {tinfo['row_label']} values in meters (rows)
+- TOP row: {tinfo['col_label']} values in meters (columns)
+- Each cell contains ONE integer price (no asterisks, no secondary prices)
+
+EXPECTED row values (widths): {tinfo['expected_rows']}
+EXPECTED column values: {tinfo['expected_cols']}
+
+RULES:
+1. If a cell has two numbers, take ONLY the first (larger) one — ignore asterisk prices
+2. Prices may have spaces as thousands separators: "4 512" = 4512
+3. Format all dimension keys as "X.Y" (one decimal, e.g. "3.0", "1.5")
+4. Return ONLY valid JSON — no markdown, no explanation
+
+REQUIRED JSON format:
+{{
+  "widths": ["3.0", "3.5", "4.0", ...],
+  "projections": ["1.5", "2.0", "2.5", ...],
+  "prices": {{
+    "3.0": {{"1.5": 545, "2.0": 595, "2.5": 650, "3.0": 715, "3.5": 790}},
+    "3.5": {{"1.5": 585, ...}},
+    ...
+  }}
+}}"""
+
+
+def _build_verify_prompt(normalized: dict, tinfo: dict) -> tuple[str, list[tuple]]:
+    """Строит промпт верификации для угловых ячеек и первой/последней строки."""
+    widths = normalized["widths"]
+    projs = normalized["projections"]
+    prices = normalized["prices"]
+
+    cells_to_check: list[tuple] = []
+    seen: set[tuple] = set()
+
+    def _add(w: str, p: str) -> None:
+        if (w, p) not in seen and w in prices and p in prices.get(w, {}):
+            seen.add((w, p))
+            cells_to_check.append((w, p, prices[w][p]))
+
+    # Первая и последняя строка полностью
+    for w in [widths[0], widths[-1]]:
+        for p in projs:
+            _add(w, p)
+    # Первый и последний столбец всех строк
+    for w in widths:
+        for p in [projs[0], projs[-1]]:
+            _add(w, p)
+
+    if not cells_to_check:
+        return "", []
+
+    lines = [f"  {tinfo['row_label']}={w}м, {tinfo['col_label']}={p}м → extracted: {price}"
+             for w, p, price in cells_to_check]
+    cells_text = "\n".join(lines)
+
+    prompt = f"""You are verifying OCR-extracted awning prices.
+
+TABLE: {tinfo['name']}
+Check ONLY these specific cells from the image:
+
+{cells_text}
+
+Return ONLY a JSON object with corrections where my value is WRONG:
+{{
+  "corrections": [
+    {{"width": "3.0", "projection": "1.5", "correct_price": 545}},
+    ...
+  ]
+}}
+
+If all values are correct return: {{"corrections": []}}
+Use "projection" key for both projection and height values.
+Return ONLY JSON — no markdown."""
+
+    return prompt, cells_to_check
+
+
+@app.route("/admin/parse-price-image", methods=["POST"])
+@_admin_required
+def admin_parse_price_image():
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return jsonify({"error": "ANTHROPIC_API_KEY не задан в .env"}), 400
+
+    table_name = request.form.get("table_name", "")
+    if table_name not in _PRICE_TABLES:
+        return jsonify({"error": f"Неизвестная таблица: {table_name}"}), 400
+
+    img_file = request.files.get("image")
+    if not img_file:
+        return jsonify({"error": "Файл изображения не передан"}), 400
+
+    img_bytes = img_file.read()
+    b64 = base64.b64encode(img_bytes).decode()
+    ext = img_file.filename.rsplit(".", 1)[-1].lower() if "." in img_file.filename else "jpeg"
+    media_type = f"image/{'jpeg' if ext in ('jpg', 'jpeg') else ext}"
+
+    tinfo = _PRICE_TABLES[table_name]
+
+    try:
+        import anthropic as _anthropic
+        client = _anthropic.Anthropic(api_key=api_key)
+
+        # --- Шаг 2: основной OCR ---
+        ocr_prompt = _build_ocr_prompt(tinfo)
+        resp1 = client.messages.create(
+            model=ANTHROPIC_OCR_MODEL,
+            max_tokens=8192,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": b64}},
+                    {"type": "text", "text": ocr_prompt},
+                ],
+            }],
+        )
+        raw1 = resp1.content[0].text.strip()
+        if raw1.startswith("```"):
+            raw1 = raw1.split("\n", 1)[1] if "\n" in raw1 else raw1
+            raw1 = raw1.rsplit("```", 1)[0].strip()
+
+        parsed = json.loads(raw1)
+        normalized = _normalize_ocr(parsed)
+
+        # --- Шаг 4: верификация угловых ячеек ---
+        corrections_applied = 0
+        verify_prompt, cells_to_check = _build_verify_prompt(normalized, tinfo)
+
+        if verify_prompt:
+            resp2 = client.messages.create(
+                model=ANTHROPIC_OCR_MODEL,
+                max_tokens=2048,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": b64}},
+                        {"type": "text", "text": verify_prompt},
+                    ],
+                }],
+            )
+            raw2 = resp2.content[0].text.strip()
+            if raw2.startswith("```"):
+                raw2 = raw2.split("\n", 1)[1] if "\n" in raw2 else raw2
+                raw2 = raw2.rsplit("```", 1)[0].strip()
+
+            try:
+                verify_data = json.loads(raw2)
+                for corr in verify_data.get("corrections", []):
+                    w_key = _fmt_dim(corr.get("width", ""))
+                    p_key = _fmt_dim(corr.get("projection", ""))
+                    correct_price = _parse_price_int(corr.get("correct_price", 0))
+                    if (w_key in normalized["prices"]
+                            and p_key in normalized["prices"][w_key]
+                            and normalized["prices"][w_key][p_key] != correct_price):
+                        normalized["prices"][w_key][p_key] = correct_price
+                        corrections_applied += 1
+            except (json.JSONDecodeError, KeyError, ValueError):
+                pass  # верификация не критична
+
+        total_cells = sum(len(row) for row in normalized["prices"].values())
+        return jsonify({
+            "ok": True,
+            "table_name": table_name,
+            "table_label": tinfo["name"],
+            "data": normalized,
+            "stats": {
+                "cells": total_cells,
+                "corrections": corrections_applied,
+                "widths": len(normalized["widths"]),
+                "projections": len(normalized["projections"]),
+            },
+        })
+
+    except json.JSONDecodeError as exc:
+        return jsonify({"error": f"Claude вернул невалидный JSON: {exc}"}), 422
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/admin/apply-parsed-prices", methods=["POST"])
+@_admin_required
+def admin_apply_parsed_prices():
+    """Заменяет таблицу в awning_pricing.json и сбрасывает кэш."""
+    body = request.get_json(force=True) or {}
+    table_name = body.get("table_name", "")
+    prices_in = body.get("prices", {})  # {width: {projection: price}}
+
+    if table_name not in _PRICE_TABLES:
+        return jsonify({"error": f"Неизвестная таблица: {table_name}"}), 400
+    if not prices_in:
+        return jsonify({"error": "Пустые данные цен"}), 400
+
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(base_dir, "static", "data", "awning_pricing.json")
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            pricing = json.load(f)
+
+        # Нормализуем и записываем
+        new_table: dict[str, dict[str, int]] = {}
+        for w_raw, row in prices_in.items():
+            w = _fmt_dim(w_raw)
+            new_table[w] = {}
+            for p_raw, price in row.items():
+                p = _fmt_dim(p_raw)
+                try:
+                    new_table[w][p] = int(float(price))
+                except (ValueError, TypeError):
+                    new_table[w][p] = 0
+
+        pricing[table_name] = new_table
+
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(pricing, f, ensure_ascii=False, indent=2)
+
+    except Exception as exc:
+        return jsonify({"error": f"Ошибка записи файла: {exc}"}), 500
+
+    # Сброс кэша расчётов + перезагрузка прайса
+    with _CACHE_LOCK:
+        _CACHE.clear()
+    reload_pricing()
+
+    total_cells = sum(len(row) for row in new_table.values())
+    return jsonify({"ok": True, "table_name": table_name, "cells_written": total_cells})
 
 
 if __name__ == "__main__":

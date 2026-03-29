@@ -1,0 +1,25 @@
+# systemd unit для reg.ru / ISPmanager
+# Установка:
+#   sudo cp deploy/awning-calculator.service /etc/systemd/system/
+#   sudo mkdir -p /var/log/awning-calculator && sudo chown www-data:www-data /var/log/awning-calculator
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now awning-calculator
+#
+# Пути ниже — как в плане (измените User/Group и WorkingDirectory под вашего пользователя сайта).
+
+[Unit]
+Description=Gunicorn — калькулятор маркиз (Flask)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/awning-calculator
+EnvironmentFile=/var/www/awning-calculator/.env
+ExecStart=/var/www/awning-calculator/venv/bin/gunicorn -c gunicorn.conf.py app:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
