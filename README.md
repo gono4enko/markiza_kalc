@@ -2,6 +2,8 @@
 
 Серверный расчёт стоимости, PDF КП, заявки (Telegram + SMTP), админка с OCR прайсов.
 
+**Репозиторий:** [github.com/gono4enko/markiza_kalc](https://github.com/gono4enko/markiza_kalc) — клонирование и деплой с GitHub.
+
 ## Быстрый старт (локально)
 
 ```bash
