@@ -27,8 +27,6 @@
     motorBrand: 'decolife',
     sensorType: 'none',
     lightingOption: 'none',
-    /** Многоканальный пульт (несколько маркиз); иначе при LED — пульт 2 канала */
-    multiChannelRemote: false,
     installation: 'none',
     /** Выбранный оттенок стандартной ткани (локтевые / витринные) */
     fabricStdSwatch: null,
@@ -1975,19 +1973,27 @@
   /* =====================================================================
      ШАГ 6: УПРАВЛЕНИЕ
   ===================================================================== */
+  function orderAwningCountTotal() {
+    var sum = 0;
+    state.items.forEach(function (it) {
+      var q = parseInt(it.qty, 10);
+      sum += isNaN(q) || q < 1 ? 1 : q;
+    });
+    return Math.max(1, sum);
+  }
+
   function updateRemoteProfileHint() {
     var hint = document.getElementById('remoteProfileHint');
     if (!hint) return;
-    if (state.multiChannelRemote) {
-      hint.textContent =
-        'В расчёт идёт многоканальный пульт (несколько маркиз с одного пульта).';
-    } else if (state.lightingOption === 'standard' && state.awningType === 'standard') {
-      hint.textContent =
-        'При LED подсветке в расчёт идёт пульт с двумя каналами: маркиза и освещение управляются отдельно.';
-    } else {
-      hint.textContent =
-        'Одноканальный пульт для одной маркизы. Отметьте галочку ниже, если нужен многоканальный пульт.';
-    }
+    var n = orderAwningCountTotal();
+    var led = state.lightingOption === 'standard' && state.awningType === 'standard';
+    var ch = led ? n * 2 : n;
+    hint.textContent =
+      'Сейчас в расчёте ' +
+      n +
+      '\u00a0марк.' +
+      (led ? ' со встроенной LED — нужно ' + ch + '\u00a0радиоканалов' : ' — нужно ' + ch + '\u00a0радиоканал.') +
+      ' Модель пульта подбирается под бренд привода (Somfy / Simu / Gaviota) и вместимость в каналах из прайса. Один пульт на весь расчёт.';
   }
 
   function renderStep6() {
@@ -2008,10 +2014,6 @@
     var rpg = document.getElementById('remoteProfileGroup');
     if (rpg) {
       rpg.style.display = state.control === 'electric' ? 'block' : 'none';
-    }
-    var mrcb = document.getElementById('multiChannelRemoteCb');
-    if (mrcb) {
-      mrcb.checked = !!state.multiChannelRemote;
     }
     updateRemoteProfileHint();
 
@@ -2118,14 +2120,6 @@
       state.lightingOption = value;
       updateRemoteProfileHint();
     });
-
-    var mrcb = document.getElementById('multiChannelRemoteCb');
-    if (mrcb) {
-      mrcb.addEventListener('change', function () {
-        state.multiChannelRemote = mrcb.checked;
-        updateRemoteProfileHint();
-      });
-    }
 
     // Install cards (Step 7)
     bindCardGroup('installCards', function (value) { state.installation = value; });
@@ -2372,17 +2366,17 @@
       shared.motor_brand = state.motorBrand;
       shared.sensor_type = state.sensorType;
       shared.lighting_option = state.lightingOption;
-      if (state.multiChannelRemote) {
-        shared.multi_channel_remote = true;
-      }
+      shared.order_awning_count = orderAwningCountTotal();
     }
 
     // Сохраняем параметры для кнопки PDF
     window._lastCalcParamsList = [];
 
-    var promises = state.items.map(function (item) {
+    var promises = state.items.map(function (item, lineIdx) {
       var params = {};
       for (var k in shared) { if (shared.hasOwnProperty(k)) params[k] = shared[k]; }
+      params.order_line_index = lineIdx;
+      params.quantity = Math.max(1, parseInt(item.qty, 10) || 1);
       params.width = parseFloat(item.width);
       if (state.awningType === 'zip') {
         params.height = parseFloat(item.dim);
@@ -2431,7 +2425,14 @@
     results.forEach(function (res, idx) {
       var item = state.items[idx];
       var qty = parseInt(item.qty, 10) || 1;
-      var posTotal = (res.total || 0) * qty;
+      var ro = res.remote_order_all_in_rub;
+      var pex = res.per_unit_total_excl_order_remote;
+      var posTotal;
+      if (ro != null && pex != null && state.control === 'electric') {
+        posTotal = Math.round(pex * qty + (idx === 0 ? ro : 0));
+      } else {
+        posTotal = (res.total || 0) * qty;
+      }
       grandTotal += posTotal;
 
       var sizeStr = item.width + '\u00d7' + item.dim + '\u00a0м';
@@ -2533,7 +2534,14 @@
       results.forEach(function (res, idx) {
         var item = state.items[idx];
         var qty = parseInt(item.qty, 10) || 1;
-        var posTotal = (res.total || 0) * qty;
+        var ro = res.remote_order_all_in_rub;
+        var pex = res.per_unit_total_excl_order_remote;
+        var posTotal;
+        if (ro != null && pex != null && state.control === 'electric') {
+          posTotal = Math.round(pex * qty + (idx === 0 ? ro : 0));
+        } else {
+          posTotal = (res.total || 0) * qty;
+        }
 
         if (multi) {
           var posHdr = document.createElement('div');
@@ -2550,7 +2558,9 @@
           lbl.textContent = r[0];
           var val = document.createElement('span');
           val.className = 'bd-val';
-          val.textContent = numFmt.format(qty > 1 ? r[1] * qty : r[1]);
+          var isRemote = String(r[0]).indexOf('Пульт управления') !== -1;
+          var mult = !isRemote && qty > 1 ? qty : 1;
+          val.textContent = numFmt.format(Math.round(r[1] * mult));
           row.appendChild(lbl);
           row.appendChild(val);
           body.appendChild(row);

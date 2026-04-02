@@ -1075,7 +1075,7 @@ Always include:
     "simu": {{...}},
     "decolife": {{...}}
   }}
-  Map rows: 1st remote row → single (1 channel), 2nd → dual_light (2 channels / patio), 3rd → multi (many channels / LCD). If Somfy shows "40/70" style, use 40 for single-like and 70 for dual-like.
+  Map rows: 1st remote row → single (channels_max 1), 2nd → dual_light (patio / up to ~5 channels, channels_max 5), 3rd → multi (LCD / up to ~15, channels_max 15). Each remote object may include "channels_max": int when the sheet states it. If Somfy shows "40/70" style, use 40 for single-like and 70 for dual-like.
 - "sensor_radio": {{"somfy": int, "simu": int, "decolife": int}} — first wind/radio sensor column price per brand
 - "sensor_speed": {{"somfy": int, "simu": int, "decolife": int}} — sun+wind / 3D / EOSUN style row per brand
 

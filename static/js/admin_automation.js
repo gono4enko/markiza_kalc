@@ -15,9 +15,9 @@
     { key: "decolife", label: "Gaviota" },
   ];
   var REMOTE_KEYS = [
-    { key: "single", label: "1 канал" },
-    { key: "dual_light", label: "2 канала (маркиза + LED)" },
-    { key: "multi", label: "Многоканальный / ЖКИ" },
+    { key: "single", label: "1 канал (max)" },
+    { key: "dual_light", label: "до 5 каналов (max)" },
+    { key: "multi", label: "до 15 каналов (max)" },
   ];
 
   var activeSegment = "elbow";
@@ -189,7 +189,7 @@
     rt.className = "auto-table";
     var rth = document.createElement("tr");
     var rth0 = document.createElement("th");
-    rth0.textContent = "Тип пульта";
+    rth0.textContent = "Тип / max каналов";
     rth.appendChild(rth0);
     var rh;
     for (rh = 0; rh < BRANDS.length; rh++) {
@@ -223,9 +223,27 @@
         ieur.className = "eur-inp";
         ieur.id = inpId(seg, "rm_" + brand + "_" + rv.key + "_e");
         ieur.value = pack.eur != null ? String(pack.eur) : "";
+        var icap = document.createElement("input");
+        icap.type = "number";
+        icap.step = "1";
+        icap.min = "1";
+        icap.className = "eur-inp";
+        icap.style.maxWidth = "4em";
+        icap.title = "channels_max — сколько радиоканалов покрывает модель";
+        icap.id = inpId(seg, "rm_" + brand + "_" + rv.key + "_c");
+        icap.value = pack.channels_max != null ? String(pack.channels_max) : "";
+        icap.placeholder = "max";
         rtd.appendChild(ilab);
         rtd.appendChild(document.createElement("br"));
         rtd.appendChild(ieur);
+        var capLab = document.createElement("label");
+        capLab.setAttribute("for", icap.id);
+        capLab.textContent = " кан.";
+        capLab.style.marginLeft = "4px";
+        capLab.style.fontSize = "12px";
+        rtd.appendChild(document.createElement("br"));
+        rtd.appendChild(icap);
+        rtd.appendChild(capLab);
         rtr.appendChild(rtd);
       }
       rt.appendChild(rtr);
@@ -317,6 +335,10 @@
           target[bk][vk] = target[bk][vk] || {};
           if (p.label != null) target[bk][vk].label = String(p.label);
           if (p.eur != null) target[bk][vk].eur = parseFloat(p.eur) || 0;
+          if (p.channels_max != null) {
+            var cm = parseInt(p.channels_max, 10);
+            if (!isNaN(cm) && cm > 0) target[bk][vk].channels_max = cm;
+          }
         }
       }
     }
@@ -446,10 +468,16 @@
         var il = $(inpId(seg, "rm_" + br + "_" + rvk + "_l"));
         var ie = $(inpId(seg, "rm_" + br + "_" + rvk + "_e"));
         if (il || ie) {
-          b.remotes[br][rvk] = {
+          var ic = $(inpId(seg, "rm_" + br + "_" + rvk + "_c"));
+          var packW = {
             label: il && il.value ? String(il.value).trim() : "Пульт управления",
             eur: ie && ie.value !== "" ? parseFloat(ie.value) || 0 : 0,
           };
+          if (ic && ic.value !== "") {
+            var cm = parseInt(ic.value, 10);
+            if (!isNaN(cm) && cm > 0) packW.channels_max = cm;
+          }
+          b.remotes[br][rvk] = packW;
         }
       }
     }

@@ -129,6 +129,9 @@ _BUILTIN_REMOTE: dict[str, dict[str, tuple[str, float]]] = {
     },
 }
 
+# Вместимость пульта по ключу в JSON, если не задано поле channels_max у позиции
+_REMOTE_CAP_BY_KEY: dict[str, int] = {"single": 1, "dual_light": 5, "multi": 15}
+
 
 def _automation_segment(awning_type: str) -> str:
     """Сегмент прайса автоматики: локтевая / витринная / ZIP."""
@@ -237,6 +240,113 @@ def _remote_eur_and_label(
     fb = _BUILTIN_REMOTE.get(brand) or _BUILTIN_REMOTE["decolife"]
     tup = fb.get(variant) or fb["single"]
     return float(tup[1]), str(tup[0])
+
+
+def _parse_nonneg_int(val: Any, default: int) -> int:
+    try:
+        n = int(float(val))
+        return n if n >= 0 else default
+    except (TypeError, ValueError):
+        return default
+
+
+def _remote_billing_params(params: dict[str, Any]) -> tuple[bool, int]:
+    """
+    Нужно ли включать стоимость пульта в этот ответ и сколько маркиз в заказе для расчёта каналов.
+    Если order_line_index не передан (старые клиенты) — пульт в каждом ответе, число маркиз из quantity / 1.
+    Если передан — пульт только при order_line_index == 0, число маркиз из order_awning_count.
+    """
+    raw_idx = params.get("order_line_index")
+    if raw_idx is None:
+        n = _parse_nonneg_int(params.get("order_awning_count"), 0)
+        if n <= 0:
+            n = max(1, _parse_nonneg_int(params.get("quantity"), 1))
+        return True, max(1, n)
+    idx = max(0, _parse_nonneg_int(raw_idx, 0))
+    charge = idx == 0
+    n = _parse_nonneg_int(params.get("order_awning_count"), 0)
+    if n <= 0:
+        n = max(1, _parse_nonneg_int(params.get("quantity"), 1))
+    return charge, max(1, n)
+
+
+def _radio_channels_needed(awning_count: int, awning_type: str, lighting_option: str) -> int:
+    """Радиоканалы: по одному на маркизу + по одному на LED каждой маркизы (только локтевая со встроенной LED)."""
+    n = max(1, awning_count)
+    if awning_type == "standard" and lighting_option == "standard":
+        return n * 2
+    return n
+
+
+def _remote_pack_capacity(pack: dict[str, Any], variant_key: str) -> int:
+    raw = pack.get("channels_max")
+    if raw is not None:
+        try:
+            return max(1, int(float(raw)))
+        except (TypeError, ValueError):
+            pass
+    return _REMOTE_CAP_BY_KEY.get(variant_key, 1)
+
+
+def _brand_remote_subtree(root: dict[str, Any], brand: str) -> dict[str, Any]:
+    b = root.get(brand) if isinstance(root.get(brand), dict) else None
+    if not b:
+        b = root.get("decolife") if isinstance(root.get("decolife"), dict) else {}
+    return b if isinstance(b, dict) else {}
+
+
+def pick_remote_eur_label_variant(
+    pricing: dict[str, Any],
+    brand: str,
+    needed_channels: int,
+    *,
+    for_zip: bool,
+    automation_bucket: dict[str, Any] | None,
+) -> tuple[float, str, str, int]:
+    """
+    Подбор пульта той же марки (Somfy/Simu/Gaviota): минимальная вместимость channels_max ≥ нужных каналов.
+    Возвращает (eur, label, variant_key, channels_capacity).
+    """
+    need = max(1, int(needed_channels))
+    root = None
+    if automation_bucket is not None:
+        root = automation_bucket.get("remotes")
+    if not isinstance(root, dict) or not root:
+        key_root = "_remote_zip_costs" if for_zip else "_remote_costs"
+        root = pricing.get(key_root)
+        if for_zip and (not isinstance(root, dict) or not root):
+            root = pricing.get("_remote_costs") or {}
+    if not isinstance(root, dict):
+        root = {}
+    bmap = _brand_remote_subtree(root, brand)
+    candidates: list[tuple[int, float, str, str]] = []
+    for vk, pack in bmap.items():
+        if not isinstance(vk, str) or vk.startswith("_"):
+            continue
+        if not isinstance(pack, dict):
+            continue
+        if "eur" not in pack and not pack.get("label"):
+            continue
+        cap = _remote_pack_capacity(pack, vk)
+        if cap >= need:
+            eur = float(pack.get("eur", 0))
+            lab = str(pack.get("label") or "Пульт управления").strip() or "Пульт управления"
+            candidates.append((cap, eur, lab, vk))
+    if candidates:
+        candidates.sort(key=lambda x: (x[0], x[1]))
+        cap, eur, lab, vk = candidates[0]
+        return eur, lab, vk, cap
+    if need <= 1:
+        vk = "single"
+    elif need <= 5:
+        vk = "dual_light"
+    else:
+        vk = "multi"
+    eur, lab = _remote_eur_and_label(
+        pricing, brand, vk, for_zip=for_zip, automation_bucket=automation_bucket,
+    )
+    cap = _REMOTE_CAP_BY_KEY.get(vk, 1)
+    return eur, lab, vk, cap
 
 
 def _motor_body_eur_standard(
@@ -653,18 +763,6 @@ def _truthy_json_flag(val: Any) -> bool:
     return s in ("1", "true", "yes", "on", "да")
 
 
-def _remote_variant_key(params: dict[str, Any], awning_type: str) -> str:
-    """
-    single — одна маркиза; dual_light — отдельные каналы маркиза + LED;
-    multi — многоканальный пульт (несколько маркиз), задаётся флагом multi_channel_remote.
-    """
-    if _truthy_json_flag(params.get("multi_channel_remote")):
-        return "multi"
-    if awning_type == "standard" and params.get("lighting_option") == "standard":
-        return "dual_light"
-    return "single"
-
-
 def calculate(params: dict[str, Any]) -> dict[str, Any]:
     """
     Выполняет расчёт стоимости маркизы.
@@ -686,7 +784,9 @@ def calculate(params: dict[str, Any]) -> dict[str, Any]:
       motor_brand: 'somfy' | 'simu' | 'decolife'
       sensor_type: 'none' | 'radio' | 'speed'
       lighting_option: 'none' | 'standard'
-      multi_channel_remote: bool — многоканальный пульт (несколько маркиз); иначе при LED — пульт 2 канала
+      order_awning_count: int — всего маркиз в расчёте (для подбора пульта по радиоканалам)
+      order_line_index: int — индекс позиции 0..n; пульт в стоимость только при 0 (один пульт на заказ)
+      quantity: int — количество по строке (fallback для order_awning_count)
       installation: 'none' | 'with'
       storefront_tilt_170: bool — витринная G400/G450: угол наклона до 170° (+15% к базе)
       storefront_valance: 'none' | 'straight' | 'shaped' — волан: нет / прямой (10 €/м ширины) / фигурный (15 €/м)
@@ -848,7 +948,7 @@ def calculate(params: dict[str, Any]) -> dict[str, Any]:
             series = _STD_FABRIC_SUNTEX_SERIES.get(fabric, fabric)
             rows.append(
                 [
-                    f"Оттенок ткани: {_STD_FABRIC_MFG} · серия «{series}» · арт. {swatch_lbl}",
+                    f"Акриловая ткань: {_STD_FABRIC_MFG} · серия «{series}» · арт. {swatch_lbl}",
                     0,
                 ]
             )
@@ -954,17 +1054,42 @@ def calculate(params: dict[str, Any]) -> dict[str, Any]:
 
         if control == "electric":
             brand = params.get("motor_brand", "decolife")
-            rv = _remote_variant_key(params, awning_type)
+            charge_remote, awning_n = _remote_billing_params(params)
+            lo = str(params.get("lighting_option", "none") or "none")
+            ch_need = _radio_channels_needed(awning_n, awning_type, lo)
             motor_b = _motor_body_eur_standard(pricing, brand, _auto_b)
-            remote_eur, remote_lbl = _remote_eur_and_label(
-                pricing, brand, rv, for_zip=False, automation_bucket=_auto_b,
-            )
-            control_cost = motor_b + remote_eur
-            rows.append(
-                [f"Трубчатый электропривод {_MOTOR_NAMES[brand]}", motor_b * euro_rate],
-            )
-            rows.append([f"Пульт управления — {remote_lbl}", remote_eur * euro_rate])
-            remote_meta = {"label": remote_lbl, "variant": rv, "eur": remote_eur}
+            remote_eur = 0.0
+            remote_lbl = ""
+            rv = "single"
+            r_cap = 1
+            remote_meta = {}
+            if charge_remote:
+                remote_eur, remote_lbl, rv, r_cap = pick_remote_eur_label_variant(
+                    pricing, brand, ch_need, for_zip=False, automation_bucket=_auto_b,
+                )
+                control_cost = motor_b + remote_eur
+                rows.append(
+                    [f"Трубчатый электропривод {_MOTOR_NAMES[brand]}", motor_b * euro_rate],
+                )
+                if remote_eur > 0:
+                    rows.append(
+                        [
+                            f"Пульт управления — {remote_lbl} (нужно {ch_need} радиоканал., до {r_cap})",
+                            remote_eur * euro_rate,
+                        ]
+                    )
+                remote_meta = {
+                    "label": remote_lbl,
+                    "variant": rv,
+                    "eur": remote_eur,
+                    "channels_needed": ch_need,
+                    "channels_capacity": r_cap,
+                }
+            else:
+                control_cost = motor_b + remote_eur
+                rows.append(
+                    [f"Трубчатый электропривод {_MOTOR_NAMES[brand]}", motor_b * euro_rate],
+                )
 
             sensor = params.get("sensor_type", "none")
             if sensor == "radio":
@@ -1048,17 +1173,42 @@ def calculate(params: dict[str, Any]) -> dict[str, Any]:
         if control == "electric":
             brand = params.get("motor_brand", "simu")
             small = (width <= 3.5) and (h <= 4.0)
-            rv = _remote_variant_key(params, awning_type)
+            charge_remote, awning_n = _remote_billing_params(params)
+            lo = str(params.get("lighting_option", "none") or "none")
+            ch_need = _radio_channels_needed(awning_n, awning_type, lo)
             motor_b = _motor_body_eur_zip(pricing, brand, small, _auto_b)
-            remote_eur, remote_lbl = _remote_eur_and_label(
-                pricing, brand, rv, for_zip=True, automation_bucket=_auto_b,
-            )
-            control_cost = motor_b + remote_eur
-            rows.append(
-                [f"Трубчатый электропривод {_MOTOR_NAMES[brand]} (ZIP)", motor_b * euro_rate],
-            )
-            rows.append([f"Пульт управления — {remote_lbl}", remote_eur * euro_rate])
-            remote_meta = {"label": remote_lbl, "variant": rv, "eur": remote_eur}
+            remote_eur = 0.0
+            remote_lbl = ""
+            rv = "single"
+            r_cap = 1
+            remote_meta = {}
+            if charge_remote:
+                remote_eur, remote_lbl, rv, r_cap = pick_remote_eur_label_variant(
+                    pricing, brand, ch_need, for_zip=True, automation_bucket=_auto_b,
+                )
+                control_cost = motor_b + remote_eur
+                rows.append(
+                    [f"Трубчатый электропривод {_MOTOR_NAMES[brand]} (ZIP)", motor_b * euro_rate],
+                )
+                if remote_eur > 0:
+                    rows.append(
+                        [
+                            f"Пульт управления — {remote_lbl} (нужно {ch_need} радиоканал., до {r_cap})",
+                            remote_eur * euro_rate,
+                        ]
+                    )
+                remote_meta = {
+                    "label": remote_lbl,
+                    "variant": rv,
+                    "eur": remote_eur,
+                    "channels_needed": ch_need,
+                    "channels_capacity": r_cap,
+                }
+            else:
+                control_cost = motor_b + remote_eur
+                rows.append(
+                    [f"Трубчатый электропривод {_MOTOR_NAMES[brand]} (ZIP)", motor_b * euro_rate],
+                )
         else:
             control_cost = _manual_eur(pricing, _auto_b)
             rows.append(["Ручное управление", control_cost * euro_rate])
@@ -1127,7 +1277,7 @@ def calculate(params: dict[str, Any]) -> dict[str, Any]:
             f"Автоматика {mc['display_name']}: {mc['headline']}. "
             + " ".join(mc["bullets_plain"]),
         )
-        if remote_meta:
+        if remote_meta and remote_meta.get("label"):
             text_lines.insert(-1, f"Пульт управления: {remote_meta['label']}")
         out_mc = {k: mc[k] for k in ("display_name", "headline", "bullets_plain", "brand_key")}
         _st = params.get("sensor_type", "none")
@@ -1162,12 +1312,24 @@ def calculate(params: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {"total": total, "rows": rows_out, "text": text}
     if out_mc is not None:
         out["motor_commercial"] = out_mc
-    if control == "electric" and remote_meta:
+    if control == "electric" and remote_meta and float(remote_meta.get("eur") or 0) > 0:
         out["remote_commercial"] = {
             "label": str(remote_meta["label"]),
             "variant": str(remote_meta["variant"]),
             "rub": round(float(remote_meta["eur"]) * euro_rate),
+            "channels_needed": int(remote_meta.get("channels_needed") or 0),
+            "channels_capacity": int(remote_meta.get("channels_capacity") or 0),
         }
+    cr_rem, _awn_n = _remote_billing_params(params)
+    if (
+        control == "electric"
+        and cr_rem
+        and remote_meta
+        and float(remote_meta.get("eur") or 0) > 0
+    ):
+        ro = round(float(remote_meta["eur"]) * euro_rate * (1 + _dp))
+        out["remote_order_all_in_rub"] = ro
+        out["per_unit_total_excl_order_remote"] = total - ro
     if control == "electric":
         _st = params.get("sensor_type", "none")
         if _st in ("radio", "speed") and awning_type != "zip":
