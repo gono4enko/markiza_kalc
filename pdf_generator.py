@@ -28,6 +28,13 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from kp_content import get_pdf_label
+from motor_commercial import (
+    get_motor_commercial,
+    get_sensor_commercial_detail,
+    get_sensor_pdf_pair,
+)
+
 # ---------------------------------------------------------------------------
 # Пути к шрифтам
 # ---------------------------------------------------------------------------
@@ -315,6 +322,94 @@ def _append_sattler_fabric_advantages(story: list, s: dict[str, ParagraphStyle])
     ))
 
 
+def _append_selected_equipment_section(
+    story: list,
+    s: dict[str, ParagraphStyle],
+    params: dict[str, Any],
+    content_w: float,
+) -> None:
+    """
+    Автоматика и датчик: принцип работы, функционал — после эскиза, перед контактами.
+    """
+    if str(params.get("control", "") or "").lower() != "electric":
+        return
+
+    awning_t = params.get("awning_type", "")
+    if awning_t == "zip":
+        mb = str(params.get("motor_brand", "simu") or "simu")
+    else:
+        mb = str(params.get("motor_brand", "decolife") or "decolife")
+
+    mc = get_motor_commercial(mb)
+    story.append(Spacer(1, 4 * mm))
+    story.append(_section_header(
+        get_pdf_label("section_equipment", "ПОДОБРАННАЯ АВТОМАТИКА И УПРАВЛЕНИЕ"),
+        s,
+    ))
+    story.append(Spacer(1, 2 * mm))
+
+    head_style = ParagraphStyle(
+        "equip_motor_head",
+        parent=s["body"],
+        fontName="Arial-Bold",
+        fontSize=10,
+        textColor=C_DARK,
+        spaceAfter=2 * mm,
+    )
+    story.append(Paragraph(f"Электропривод <b>{mc['display_name']}</b>", head_style))
+    story.append(Paragraph(mc["headline"], ParagraphStyle(
+        "equip_motor_sub",
+        parent=s["body"],
+        fontName="Arial-Bold",
+        fontSize=9.5,
+        textColor=C_MID,
+        spaceAfter=2 * mm,
+    )))
+    story.append(Paragraph(mc["principle_html"], s["body"]))
+    story.append(Spacer(1, 1 * mm))
+    for line in mc["bullets_html"]:
+        story.append(Paragraph(f"• {line}", s["term_bullet"]))
+
+    kit = str(mc.get("image_kit") or "").strip()
+    if kit:
+        pth = _static_url_to_fs(kit)
+        if pth:
+            story.append(Spacer(1, 2 * mm))
+            img_w = min(content_w - 8 * mm, 100 * mm)
+            story.append(_image_card(pth, "Привод, пульт и комплект автоматики", max_w=img_w, s=s, max_h=55 * mm))
+
+    sensor = str(params.get("sensor_type", "none") or "none")
+    if awning_t != "zip" and sensor in ("radio", "speed"):
+        sd = get_sensor_commercial_detail(mb, sensor)
+        if sd:
+            story.append(Spacer(1, 3 * mm))
+            story.append(_section_header(
+                get_pdf_label("section_sensor", "ДАТЧИК — ЗАЩИТА И КОМФОРТ"),
+                s,
+            ))
+            story.append(Spacer(1, 2 * mm))
+            story.append(Paragraph(
+                f"<b>Модель в предложении:</b> {sd['model']}",
+                ParagraphStyle(
+                    "sensor_model",
+                    parent=s["body"],
+                    fontName="Arial-Bold",
+                    spaceAfter=2 * mm,
+                ),
+            ))
+            story.append(Paragraph(sd["intro"], s["body"]))
+            story.append(Spacer(1, 1 * mm))
+            for line in sd["bullets_html"]:
+                story.append(Paragraph(f"• {line}", s["term_bullet"]))
+            simg = str(sd.get("image") or "").strip()
+            if simg:
+                spth = _static_url_to_fs(simg)
+                if spth:
+                    story.append(Spacer(1, 2 * mm))
+                    img_w = min(content_w - 8 * mm, 90 * mm)
+                    story.append(_image_card(spth, sd["model"], max_w=img_w, s=s, max_h=50 * mm))
+
+
 def _append_elbow_arms_section(story: list, s: dict[str, ParagraphStyle], content_w: float) -> None:
     """Секция про тип локтей, сечение и натяжение — только для локтевой маркизы."""
     story.append(Spacer(1, 3 * mm))
@@ -519,8 +614,8 @@ def _image_card(
     caption_p = Paragraph(caption, ParagraphStyle(
         "img_cap",
         fontName="Arial",
-        fontSize=7.5,
-        textColor=C_MID,
+        fontSize=8.5,
+        textColor=C_DARK,
         alignment=TA_CENTER,
         spaceAfter=0,
     ))
@@ -597,7 +692,7 @@ def generate_pdf(result: dict[str, Any], params: dict[str, Any] | None = None) -
     story.append(_section_header("КОНФИГУРАЦИЯ ИЗДЕЛИЯ", s))
     story.append(Spacer(1, 2 * mm))
 
-    kv = _build_config_pairs(params, rows_data)
+    kv = _build_config_pairs(params, rows_data, result)
     if kv:
         story.append(_kv_table(kv, s))
 
@@ -752,21 +847,37 @@ def generate_pdf(result: dict[str, Any], params: dict[str, Any] | None = None) -
         story.append(_section_header("ЭСКИЗ И ОБРАЗЕЦ ТКАНИ", s))
         story.append(Spacer(1, 3 * mm))
 
-        gap = 6 * mm
-        col_w = (content_w - gap) / 2
-        # Схема высокая (portrait) → ограничиваем высоту; ткань — квадрат
-        img_cells = []
-        if scheme_path:
-            img_cells.append(_image_card(scheme_path, scheme_caption,
-                                         max_w=col_w - 2 * mm, s=s, max_h=110 * mm))
-        if fabric_path:
-            img_cells.append(_image_card(fabric_path, "Образец ткани",
-                                         max_w=col_w - 2 * mm, s=s, max_h=col_w - 2 * mm))
-
-        if len(img_cells) == 2:
+        gap = 5 * mm
+        img_cells: list = []
+        if scheme_path and fabric_path:
+            # Эскиз — большая колонка и высота, чтобы читались детали на рендере серии
+            scheme_col_w = (content_w - gap) * 0.66
+            fabric_col_w = content_w - gap - scheme_col_w
+            scheme_max_w = scheme_col_w - 2 * mm
+            scheme_max_h = 172 * mm
+            fabric_max_w = fabric_col_w - 2 * mm
+            fabric_max_h = min(128 * mm, fabric_max_w * 1.2)
+            img_cells.append(
+                _image_card(
+                    scheme_path,
+                    scheme_caption,
+                    max_w=scheme_max_w,
+                    s=s,
+                    max_h=scheme_max_h,
+                )
+            )
+            img_cells.append(
+                _image_card(
+                    fabric_path,
+                    "Образец ткани",
+                    max_w=fabric_max_w,
+                    s=s,
+                    max_h=fabric_max_h,
+                )
+            )
             imgs_tbl = Table(
                 [img_cells],
-                colWidths=[col_w, col_w],
+                colWidths=[scheme_col_w, fabric_col_w],
             )
             imgs_tbl.setStyle(TableStyle([
                 ("VALIGN",       (0, 0), (-1, -1), "TOP"),
@@ -776,10 +887,30 @@ def generate_pdf(result: dict[str, Any], params: dict[str, Any] | None = None) -
                 ("BOTTOMPADDING",(0, 0), (-1, -1), 0),
             ]))
             story.append(imgs_tbl)
-        elif img_cells:
-            story.append(img_cells[0])
+        elif scheme_path:
+            story.append(
+                _image_card(
+                    scheme_path,
+                    scheme_caption,
+                    max_w=content_w - 4 * mm,
+                    s=s,
+                    max_h=182 * mm,
+                )
+            )
+        elif fabric_path:
+            story.append(
+                _image_card(
+                    fabric_path,
+                    "Образец ткани",
+                    max_w=content_w - 4 * mm,
+                    s=s,
+                    max_h=140 * mm,
+                )
+            )
 
         story.append(Spacer(1, 5 * mm))
+
+    _append_selected_equipment_section(story, s, params, content_w)
 
     # ══════════════════════════════════════════════════════════════════════
     # СЕКЦИЯ 6 — КОНТАКТЫ
@@ -796,9 +927,12 @@ def generate_pdf(result: dict[str, Any], params: dict[str, Any] | None = None) -
     story.append(Spacer(1, 4 * mm))
 
     story.append(Paragraph(
-        "Расчёт является предварительным коммерческим предложением. "
-        "Итоговая стоимость определяется после замера и согласования проекта с менеджером.",
-        s["note"]
+        get_pdf_label(
+            "disclaimer",
+            "Расчёт является предварительным коммерческим предложением. "
+            "Итоговая стоимость определяется после замера и согласования проекта с менеджером.",
+        ),
+        s["note"],
     ))
 
     doc.build(story)
@@ -855,12 +989,7 @@ _CONTROL_LABELS = {
 _MOTOR_LABELS = {
     "somfy":    "Somfy",
     "simu":     "Simu",
-    "decolife": "Decolife",
-}
-_SENSOR_LABELS = {
-    "none":  "—",
-    "radio": "Датчик ветровых колебаний",
-    "speed": "Датчик ветра и солнца",
+    "decolife": "Gaviota",
 }
 _COLOR_LABELS_STD = {
     "white":      "RAL 9016 глянец белый",
@@ -889,6 +1018,7 @@ _COLOR_LABELS_ZIP = {
 def _build_config_pairs(
     params: dict[str, Any],
     rows: list[list],
+    result: dict[str, Any] | None = None,
 ) -> list[tuple[str, str]]:
     """Строит список (ключ, значение) для секции конфигурации."""
     pairs: list[tuple[str, str]] = []
@@ -972,6 +1102,7 @@ def _build_config_pairs(
 
     # Управление
     ctrl = params.get("control", "")
+    ctrl_electric = str(params.get("control", "") or "").lower() == "electric"
     if ctrl:
         ctrl_label = _CONTROL_LABELS.get(ctrl, ctrl)
         if ctrl == "electric":
@@ -980,10 +1111,22 @@ def _build_config_pairs(
                 ctrl_label += f" {_MOTOR_LABELS.get(mb, mb)}"
         pairs.append(("Управление", ctrl_label))
 
-    # Датчик
+    rc = (result or {}).get("remote_commercial") or {}
+    if ctrl_electric and rc.get("label"):
+        pairs.append(("Пульт управления", str(rc["label"])))
+
+    # Датчик (модель зависит от бренда автоматики; ZIP в калькуляторе без датчиков)
     sensor = params.get("sensor_type", "none")
-    if sensor and sensor != "none":
-        pairs.append(("Датчик", _SENSOR_LABELS.get(sensor, sensor)))
+    if (
+        sensor
+        and sensor != "none"
+        and ctrl_electric
+        and awning_type != "zip"
+    ):
+        mb = params.get("motor_brand", "decolife")
+        spair = get_sensor_pdf_pair(str(mb), str(sensor))
+        if spair:
+            pairs.append(spair)
 
     # Подсветка
     light = params.get("lighting_option", "none")

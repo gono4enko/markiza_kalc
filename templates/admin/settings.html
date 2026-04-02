@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Настройки КП и прайсов — Admin</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#f4f6fb;font-family:Arial,sans-serif;color:#1a2744}
+    .topbar{background:#1a2744;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+    .topbar h1{font-size:16px;color:#fff}
+    .topbar a{color:#8a9bbf;text-decoration:none;font-size:13px}
+    .topbar a:hover{color:#fff}
+    .wrap{max-width:1200px;margin:0 auto;padding:20px 16px 48px}
+    .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+    .tabs button{padding:10px 16px;border:1.5px solid #dde3f0;background:#fff;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;color:#6b7a99}
+    .tabs button.active{background:#1a2744;color:#fff;border-color:#1a2744}
+    .panel{display:none}
+    .panel.active{display:block}
+    .section{background:#fff;border:1.5px solid #dde3f0;border-radius:10px;margin-bottom:16px;overflow:hidden}
+    .section-h{padding:12px 18px;background:#f4f6fb;border-bottom:1px solid #dde3f0;font-size:12px;font-weight:700;color:#6b7a99;text-transform:uppercase;letter-spacing:0.05em}
+    .section-b{padding:16px 18px}
+    .btn{padding:10px 20px;background:#e8622a;border:none;border-radius:8px;font-weight:700;color:#fff;cursor:pointer;font-size:13px}
+    .btn:hover{background:#d4541f}
+    .btn-sec{background:#1a2744}
+    .btn-sec:hover{background:#243057}
+    .row{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:14px}
+    label{display:block;font-size:11px;font-weight:700;color:#6b7a99;text-transform:uppercase;margin-bottom:5px}
+    input[type=text],input[type=number],textarea,select{width:100%;padding:9px 12px;border:1.5px solid #dde3f0;border-radius:8px;font-size:13px}
+    textarea{min-height:88px;font-family:inherit}
+    .hint{font-size:12px;color:#6b7a99;margin-top:8px}
+    .status{font-size:13px;margin-top:10px}
+    .status.ok{color:#1a7a4a}
+    .status.err{color:#c0392b}
+    .price-table-wrap{overflow-x:auto;margin-top:12px}
+    .price-table{border-collapse:collapse;font-size:12px}
+    .price-table th,.price-table td{border:1px solid #dde3f0;padding:6px 8px;text-align:center}
+    .price-table th{background:#1a2744;color:#fff}
+    .price-table input{width:72px;padding:4px;border:1px solid #ccc;border-radius:4px;text-align:center}
+    .card{border:1px solid #e8ecf5;border-radius:10px;padding:14px;margin-bottom:12px;background:#fafbfd}
+    .field{margin-bottom:12px}
+    .upload-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+    .img-prev{max-height:56px;max-width:120px;border-radius:6px;border:1px solid #dde3f0;margin-top:8px}
+    .price-table input.cell-dirty{background:#fff9c4}
+    .decolife-head{font-size:15px;font-weight:700;color:#1a2744;margin-bottom:6px}
+    .decolife-sub{font-size:12px;color:#6b7a99;margin-bottom:12px}
+    .btn-green{background:#1a7a4a}
+    .btn-green:hover{background:#146b3f}
+    .btn-del{color:#c0392b;font-weight:700;cursor:pointer;border:none;background:transparent;padding:0 4px;font-size:14px}
+    .auto-seg-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 16px}
+    .auto-seg-tabs button{padding:8px 14px;border:1.5px solid #dde3f0;background:#fff;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;color:#6b7a99}
+    .auto-seg-tabs button.active{background:#1a2744;color:#fff;border-color:#1a2744}
+    .auto-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}
+    .auto-table th,.auto-table td{border:1px solid #dde3f0;padding:8px 10px;text-align:left;vertical-align:top}
+    .auto-table th{background:#e8ecf5;color:#1a2744;font-weight:700}
+    .auto-table .brand-col{background:#f8f9fc;font-weight:700;width:120px}
+    .auto-table input[type=text],.auto-table input[type=number]{width:100%;max-width:100%;padding:6px 8px;font-size:12px}
+    .auto-table .eur-inp{max-width:88px;text-align:right}
+    .auto-section-title{font-size:11px;font-weight:700;color:#6b7a99;text-transform:uppercase;margin:18px 0 6px;letter-spacing:0.04em}
+  </style>
+</head>
+<body>
+<div class="topbar">
+  <h1>Настройки КП, цен и медиа</h1>
+  <div style="display:flex;gap:16px;align-items:center">
+    <a href="/admin">← Дашборд</a>
+    <a href="/admin/logout">Выйти</a>
+  </div>
+</div>
+<div class="wrap">
+  <div class="tabs">
+    <button type="button" class="tab-btn active" data-tab="matrices">Матричные прайсы</button>
+    <button type="button" class="tab-btn" data-tab="scalars">Тарифы и коэффициенты</button>
+    <button type="button" class="tab-btn" data-tab="kp">Тексты и изображения КП</button>
+    <button type="button" class="tab-btn" data-tab="decolife">Матрицы Gaviota (G90…)</button>
+  </div>
+
+  <div id="panel-matrices" class="panel active">
+    <div class="section">
+      <div class="section-h">Редактирование ячеек (EUR, до курса)</div>
+      <div class="section-b">
+        <label for="matrixSelect">Таблица</label>
+        <select id="matrixSelect"></select>
+        <div class="price-table-wrap"><table class="price-table" id="matrixTable"></table></div>
+        <p style="margin-top:14px"><button type="button" class="btn" id="savePricingBtn">Сохранить весь прайс (JSON)</button></p>
+        <p class="hint">Файл static/data/awning_pricing.json, резервная копия .bak. Кэш сбрасывается.</p>
+        <div class="status" id="pricingStatus"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel-scalars" class="panel">
+    <div class="section">
+      <div class="section-h">Курс и наценки</div>
+      <div class="section-b row">
+        <div><label for="euro_rate">Курс EUR → RUB</label><input type="number" id="euro_rate" min="1"></div>
+        <div><label for="delivery_pct">Изготовление (% от комплекта)</label><input type="number" id="delivery_pct" step="0.01"></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-h">Автоматика по виду маркизы (EUR, до курса)</div>
+      <div class="section-b">
+        <p class="hint" style="margin-top:0">Три независимых набора: локтевая, витринная, ZIP. Колонки Somfy · Simu · Gaviota (в JSON ключ привода — decolife). Распознавание загружает блок для выбранной вкладки.</p>
+        <div class="auto-seg-tabs" id="automationSegTabs"></div>
+        <div class="upload-row" style="margin-bottom:8px">
+          <input type="file" id="automationImageInput" accept="image/*">
+          <button type="button" class="btn btn-sec" id="automationParseBtn">Загрузить прайс с картинки</button>
+        </div>
+        <div class="status" id="automationParseStatus"></div>
+        <div id="automationEditorHost"></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-h">Матрицы Gaviota (локтевая)</div>
+      <div class="section-b row">
+        <div><label><input type="checkbox" id="use_open"> Открытая JSON</label></div>
+        <div><label><input type="checkbox" id="use_semi"> Полукассетная</label></div>
+        <div><label><input type="checkbox" id="use_cass"> Кассетная</label></div>
+      </div>
+    </div>
+    <div class="section-b"><button type="button" class="btn" id="saveScalarsBtn">Сохранить тарифы в JSON</button><div class="status" id="scalarStatus"></div></div>
+  </div>
+
+  <div id="panel-decolife" class="panel">
+    <div class="section">
+      <div class="section-h">Прайс по модели и категории ткани (EUR в ячейке, до курса)</div>
+      <div class="section-b">
+        <p class="decolife-sub">Как в прайс-листе: ширина слева направо (столбцы), вынос сверху вниз (строки). В JSON по-прежнему prices[ширина][вынос]. У каждой модели три матрицы — переключатель «Ткань»: (1) Gaviota, (2) Sattler Elements / Solid, (3) Sattler Lumera / Lumera 3D. Файлы: decolife_*_elbow.json.</p>
+        <div class="row">
+          <div>
+            <label for="decolifeLineSelect">Линейка</label>
+            <select id="decolifeLineSelect"></select>
+          </div>
+          <div>
+            <label for="decolifeModelSelect">Модель</label>
+            <select id="decolifeModelSelect"></select>
+          </div>
+          <div>
+            <label for="decolifeTierSelect">Ткань</label>
+            <select id="decolifeTierSelect"></select>
+          </div>
+        </div>
+        <div class="decolife-head" id="decolifeMatrixTitle">—</div>
+        <div class="upload-row" style="margin-top:12px">
+          <div class="field" style="margin:0">
+            <label for="decolifeImageInput">Загрузить прайс из изображения</label>
+            <input type="file" id="decolifeImageInput" accept="image/*">
+          </div>
+          <button type="button" class="btn btn-sec" id="decolifeParseBtn">Распознать (Claude)</button>
+        </div>
+        <p class="hint">Выберите нужную категорию ткани; если на листе три таблицы подряд — лучше обрезать скрин до одного блока или загрузить целиком (модель постарается взять нужный блок).</p>
+        <div class="price-table-wrap"><table class="price-table" id="decolifeMatrixTable"></table></div>
+        <div class="upload-row" style="margin-top:14px;align-items:center">
+          <input type="text" id="decolifeNewWidth" placeholder="Ширина, м" style="max-width:120px">
+          <button type="button" class="btn btn-green" id="decolifeAddWidthBtn">+ Столбец (ширина)</button>
+          <input type="text" id="decolifeNewProj" placeholder="Вынос, м" style="max-width:120px">
+          <button type="button" class="btn btn-green" id="decolifeAddProjBtn">+ Строка (вынос)</button>
+        </div>
+        <p style="margin-top:14px">
+          <button type="button" class="btn" id="decolifeSaveBtn">Сохранить матрицу в JSON</button>
+        </p>
+        <div class="status" id="decolifeStatus"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel-kp" class="panel">
+    <div class="section">
+      <div class="section-h">Заголовки PDF</div>
+      <div class="section-b row">
+        <div class="field"><label for="pl_eq">Секция автоматики</label><input type="text" id="pl_eq"></div>
+        <div class="field"><label for="pl_se">Секция датчика</label><input type="text" id="pl_se"></div>
+      </div>
+      <div class="section-b field"><label for="pl_dis">Дисклеймер</label><textarea id="pl_dis" rows="3"></textarea></div>
+    </div>
+    <div id="motorsWrap"></div>
+    <div id="sensorsWrap"></div>
+    <div class="section-b">
+      <button type="button" class="btn btn-sec" id="kpDefaultsBtn">Сбросить к дефолтам из кода</button>
+      <button type="button" class="btn" id="saveKpBtn">Сохранить kp_content.json</button>
+      <p class="hint">Загрузка файла подставит путь /static/img/kp_admin/…</p>
+      <div class="status" id="kpStatus"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/admin_settings.js"></script>
+<script src="/static/js/admin_automation.js"></script>
+<script src="/static/js/admin_decolife.js"></script>
+</body>
+</html>

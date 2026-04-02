@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Калькулятор маркиз</title>
 <link rel="preload" as="image" href="https://optim.tildacdn.com/tild6539-6430-4935-b431-326366653838/-/format/webp/G100.png.webp">
 <link rel="preload" as="image" href="https://optim.tildacdn.com/tild6464-6439-4133-b936-663366656133/-/format/webp/g110.webp">
@@ -19,7 +19,17 @@
   --ch-trans:all 0.2s ease;
 }
 body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
-.ch-calc{max-width:580px;margin:0 auto;padding:0 4px}
+/* Контейнер: адаптивные отступы, вырезы iPhone, на XL чуть шире для читаемости */
+.ch-calc{
+  width:100%;
+  max-width:580px;
+  margin:0 auto;
+  padding:max(0px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 4px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 4px));
+  box-sizing:border-box;
+}
+@media(min-width:900px){.ch-calc{max-width:620px;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}}
+@media(min-width:1200px){.ch-calc{max-width:680px}}
+@media(min-width:1600px){.ch-calc{max-width:720px}}
 
 /* --- БАЗОВЫЕ ПОЛЯ --- */
 .ch-input,.ch-select{width:100%;padding:10px 12px;background:var(--ch-light);border:1.5px solid var(--ch-border);border-radius:var(--ch-radius-sm);font-size:14px;color:var(--ch-text);font-family:'Arial',sans-serif;outline:none;transition:var(--ch-trans);appearance:none;-webkit-appearance:none}
@@ -28,7 +38,9 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
 .field-hint{font-size:11px;color:var(--ch-orange);margin-top:3px}
 
 /* --- ПРОГРЕСС-БАР --- */
-.wz-progress{display:flex;align-items:flex-start;padding:16px 6px 4px;gap:0}
+.wz-progress{display:flex;align-items:flex-start;padding:16px 0 8px;gap:0;overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;scrollbar-width:thin}
+.wz-progress::-webkit-scrollbar{height:4px}
+.wz-progress::-webkit-scrollbar-thumb{background:var(--ch-border);border-radius:4px}
 .wz-step-node{display:flex;flex-direction:column;align-items:center;flex:0 0 auto}
 .wz-step-dot{width:26px;height:26px;border-radius:50%;background:var(--ch-border);color:var(--ch-muted);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;transition:all 0.3s;position:relative;z-index:1;flex-shrink:0}
 .wz-step-dot.done{background:var(--ch-dark);color:#fff}
@@ -47,7 +59,7 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes scaleIn{from{opacity:0;transform:scale(0.88)}to{opacity:1;transform:scale(1)}}
 
-.wz-step-title{font-size:17px;font-weight:700;color:var(--ch-dark);margin-bottom:4px}
+.wz-step-title{font-size:clamp(16px, 4.2vw, 20px);font-weight:700;color:var(--ch-dark);margin-bottom:4px;line-height:1.25}
 .wz-step-sub{font-size:12px;color:var(--ch-muted);margin-bottom:14px;line-height:1.5}
 
 /* --- CHOICE CARDS --- */
@@ -116,7 +128,7 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
 
 /* --- TOGGLE GROUP (датчики, LED) --- */
 .toggle-group{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:2px}
-.toggle-btn{padding:8px 14px;border:1.5px solid var(--ch-border);border-radius:20px;background:#fff;font-size:12px;color:var(--ch-muted);cursor:pointer;font-family:'Arial',sans-serif;transition:var(--ch-trans)}
+.toggle-btn{display:inline-flex;align-items:center;justify-content:center;padding:8px 14px;border:1.5px solid var(--ch-border);border-radius:20px;background:#fff;font-size:12px;color:var(--ch-muted);cursor:pointer;font-family:'Arial',sans-serif;transition:var(--ch-trans);text-align:center;touch-action:manipulation}
 .toggle-btn:hover{border-color:var(--ch-orange);color:var(--ch-dark)}
 .toggle-btn.selected{border-color:var(--ch-orange);background:var(--ch-orange);color:#fff;font-weight:700}
 
@@ -137,7 +149,7 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
 .wz-info-text{font-size:12px;line-height:1.5;color:#5a4000}
 
 /* --- Локти (шаг 2, только локтевая) --- */
-.elbow-arms-panel{display:none;margin-top:14px;background:linear-gradient(135deg,#f4f7fc 0%,#eef3fb 100%);border:1.5px solid var(--ch-border);border-radius:var(--ch-radius-sm);padding:12px 14px}
+.elbow-arms-panel{display:none;margin-top:14px;background:linear-gradient(135deg,#f4f7fc 0%,#eef3fb 100%);border:1.5px solid var(--ch-border);border-radius:var(--ch-radius-sm);padding:12px 14px;overflow-x:auto;-webkit-overflow-scrolling:touch}
 .elbow-arms-panel.visible{display:block}
 .elbow-arms-panel-title{font-size:12px;font-weight:700;color:var(--ch-dark);margin:0 0 8px}
 .elbow-arms-panel p{font-size:11px;line-height:1.55;color:var(--ch-text);margin:0 0 8px;opacity:0.95}
@@ -187,8 +199,10 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
 .decolife-result-card{margin-top:14px;padding:16px 18px;border-radius:var(--ch-radius);background:linear-gradient(145deg,rgba(30,42,68,.95),rgba(22,32,54,.98));border:1px solid rgba(232,98,42,.25);display:none}
 .decolife-result-card[hidden]{display:none!important}
 .decolife-result-inner{display:flex;flex-direction:column;gap:14px}
-@media(min-width:640px){.decolife-result-inner{flex-direction:row;align-items:flex-start}}
-.decolife-result-thumb{width:100%;max-width:220px;height:auto;border-radius:10px;object-fit:cover;flex-shrink:0;cursor:zoom-in;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+/* Эскиз на всю ширину блока; текст под картинкой */
+.decolife-result-media{width:100%;border-radius:12px;overflow:hidden;background:rgba(0,0,0,.22);box-shadow:0 8px 28px rgba(0,0,0,.4)}
+.decolife-result-thumb{display:block;width:100%;max-width:none;height:auto;max-height:min(72vh,520px);object-fit:contain;object-position:center top;cursor:zoom-in;margin:0;vertical-align:top}
+.decolife-result-text{min-width:0}
 .decolife-result-badge{display:inline-block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ch-accent);margin-bottom:6px}
 .decolife-result-title{font-size:1.15rem;font-weight:700;color:var(--ch-text);line-height:1.25}
 .decolife-result-meta{font-size:.85rem;color:var(--ch-muted);margin:8px 0 0;line-height:1.45}
@@ -196,7 +210,7 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
 .decolife-result-multi{font-size:.82rem;color:var(--ch-accent);margin-top:10px;line-height:1.4}
 @keyframes chSlide{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
 .result-label{font-size:13px;color:#8a9bbf;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px}
-.result-price{font-size:36px;font-weight:700;color:#fff;line-height:1;margin-bottom:20px}
+.result-price{font-size:clamp(26px, 8vw, 40px);font-weight:700;color:#fff;line-height:1;margin-bottom:20px}
 .result-price span{font-size:22px;margin-left:4px}
 
 /* --- ДЕТАЛИЗАЦИЯ --- */
@@ -205,7 +219,7 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
 .breakdown-header{padding:14px 18px;background:var(--ch-light);border-bottom:1px solid var(--ch-border);font-size:13px;font-weight:700;color:var(--ch-muted);text-transform:uppercase;letter-spacing:0.05em}
 .bd-row{display:flex;justify-content:space-between;align-items:baseline;padding:10px 18px;border-bottom:1px solid #f0f3f9;font-size:13px}
 .bd-row:last-child{border-bottom:none}
-.bd-label{color:var(--ch-text);flex:1}
+.bd-label{color:var(--ch-text);flex:1;word-break:break-word;hyphens:auto}
 .bd-val{color:var(--ch-orange);font-weight:600;text-align:right;margin-left:12px}
 .bd-total .bd-label,.bd-total .bd-val{font-weight:700}
 .bd-total .bd-val{font-size:15px}
@@ -269,6 +283,18 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
 .aw-slides{display:flex;transition:transform 0.4s ease;will-change:transform}
 .aw-slide{min-width:100%;aspect-ratio:4/3}
 .aw-slide img{width:100%;height:100%;object-fit:contain;display:block;background:#f0f3f8}
+/* Карусель типа маркизы (JS): без фиксированных 220px — высота от ширины экрана */
+.aw-carousel-js{position:relative;overflow:hidden;border-radius:6px;background:#f0f3f8;width:100%;aspect-ratio:4/3;max-height:min(52vh,400px);min-height:clamp(148px,38vw,260px)}
+.aw-slides-js{display:flex;height:100%;transition:transform 0.4s ease;will-change:transform}
+.aw-carousel-js-img{flex:0 0 100%;width:100%;height:100%;object-fit:cover;display:block;user-select:none;-webkit-user-drag:none}
+.aw-preview-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:2;background:rgba(0,0,0,0.42);border:none;color:#fff;width:40px;height:40px;border-radius:50%;cursor:pointer;font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;touch-action:manipulation;padding:0}
+.aw-preview-nav--prev{left:8px}
+.aw-preview-nav--next{right:8px}
+.aw-preview-dots{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:2;flex-wrap:wrap;justify-content:center;max-width:calc(100% - 24px)}
+.awning-static-wrap{border-radius:6px;overflow:hidden;background:#f0f3f8;line-height:0}
+.awning-static-img{width:100%;height:auto;max-height:min(52vh,340px);object-fit:contain;display:block;background:#f0f3f8}
+.config-preview-wrap{margin-top:12px;display:none;border-radius:8px;overflow:hidden;background:#f4f6fb}
+.config-preview-aspect{position:relative;width:100%;aspect-ratio:2.7/1;min-height:104px;max-height:min(34vh,280px);overflow:hidden}
 .aw-prev,.aw-next{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.35);color:#fff;border:none;width:30px;height:44px;font-size:22px;line-height:1;cursor:pointer;border-radius:4px;padding:0;display:flex;align-items:center;justify-content:center;transition:background 0.2s;z-index:2}
 .aw-prev{left:4px}.aw-next{right:4px}
 .aw-prev:hover,.aw-next:hover{background:rgba(0,0,0,0.55)}
@@ -379,13 +405,36 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
   .size-row-fields{grid-template-columns:1fr}
   .size-row-fields > :last-child{grid-column:auto}
   .wz-step-label{display:none}
-  .result-price{font-size:28px}
   .lead-row{flex-direction:column}
   .lead-btn{width:100%;text-align:center}
   .lead-channels{grid-template-columns:1fr 1fr}
 }
 @media(max-width:340px){
   .lead-channels{grid-template-columns:1fr}
+}
+/* Планшет / касание: крупнее зоны нажатия */
+@media(max-width:768px){
+  .toggle-btn{min-height:44px;padding:10px 16px;align-items:center}
+  .wz-btn-prev,.wz-btn-next,.wz-btn-calc{min-height:48px}
+  .choice-card{padding:14px 12px}
+  .veozip-grid,.soltis-grid{grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:7px}
+  .fabric-cards{gap:7px}
+}
+@media(min-width:769px) and (max-width:1024px){
+  .veozip-grid,.soltis-grid{grid-template-columns:repeat(auto-fill,minmax(90px,1fr))}
+}
+/* iOS: поля 16px+ чтобы не зумило при фокусе */
+@media(max-width:540px){
+  .ch-input,.ch-select,.lead-phone{font-size:16px}
+}
+@media(min-width:1200px){
+  .choice-card-label{font-size:14px}
+  .choice-card-desc{font-size:12px}
+  .fabric-card-name{font-size:14px}
+}
+@media(prefers-reduced-motion:reduce){
+  .wz-panel.wz-active,.wz-panel-back,.result-block,.breakdown-block,.lead-form{animation:none}
+  .aw-slides,.aw-slides-js{transition:none}
 }
 </style>
 </head>
@@ -482,8 +531,8 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
         </div>
       </details>
     </div>
-    <div id="configPreview" style="margin-top:12px;display:none;border-radius:8px;overflow:hidden;background:#f4f6fb">
-      <div style="position:relative;width:100%;padding-bottom:37%;min-height:100px">
+    <div id="configPreview" class="config-preview-wrap">
+      <div class="config-preview-aspect">
         <img class="cfg-img" id="cfg-open" src="https://optim.tildacdn.com/tild6539-6430-4935-b431-326366653838/-/format/webp/G100.png.webp" alt="Открытая">
         <img class="cfg-img" id="cfg-semi" src="https://optim.tildacdn.com/tild6464-6439-4133-b936-663366656133/-/format/webp/g110.webp" alt="Полукассетная">
         <img class="cfg-img" id="cfg-cassette" src="https://optim.tildacdn.com/tild3534-6364-4732-a366-336530666261/-/format/webp/CasseteG500.webp" alt="Кассетная">
@@ -728,7 +777,7 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
           <div class="choice-card-desc">Франция · средний класс</div>
         </div>
         <div class="choice-card selected" data-value="decolife" id="motorDecolife">
-          <div class="choice-card-label">Decolife</div>
+          <div class="choice-card-label">Gaviota</div>
           <div class="choice-card-desc">Беларусь · бюджет</div>
         </div>
       </div>
@@ -748,6 +797,17 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
           <button type="button" class="toggle-btn selected" data-value="none">Без подсветки</button>
           <button type="button" class="toggle-btn" data-value="standard">С LED подсветкой</button>
         </div>
+      </div>
+
+      <div id="remoteProfileGroup">
+        <div class="wz-section-label">Пульт управления</div>
+        <label class="wz-check-row" style="display:flex;align-items:center;gap:10px;margin-top:8px;cursor:pointer;font-size:14px">
+          <input type="checkbox" id="multiChannelRemoteCb" style="width:auto;margin:0">
+          <span>Многоканальный пульт (несколько маркиз на одном пульте)</span>
+        </label>
+        <p class="wz-hint" id="remoteProfileHint" style="margin-top:8px;font-size:12px;color:var(--ch-muted)">
+          При включённой LED подсветке в расчёт идёт пульт с двумя каналами: маркиза и освещение отдельно.
+        </p>
       </div>
     </div>
   </div>
@@ -795,8 +855,10 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
     <div class="result-price" id="resultPrice">0 <span>&#8381;</span></div>
     <div class="decolife-result-card" id="decolifeResultCard" hidden>
       <div class="decolife-result-inner">
-        <img src="" alt="" class="decolife-result-thumb" id="decolifeResultImg" width="220" height="140" loading="lazy">
-        <div>
+        <div class="decolife-result-media">
+          <img src="" alt="" class="decolife-result-thumb" id="decolifeResultImg" loading="lazy">
+        </div>
+        <div class="decolife-result-text">
           <div class="decolife-result-badge" id="decolifeResultBadge">Подобранная серия Gaviota</div>
           <div class="decolife-result-title" id="decolifeResultTitle"></div>
           <p class="decolife-result-meta" id="decolifeResultMeta"></p>
@@ -941,11 +1003,11 @@ function updateAwningPreview(type) {
   // Статичное изображение (без карусели)
   if (AWNING_STATIC_IMAGES[type]) {
     var wrapper = document.createElement('div');
-    wrapper.style.cssText = 'border-radius:6px;overflow:hidden;background:#f0f3f8;line-height:0';
+    wrapper.className = 'awning-static-wrap';
     var img = document.createElement('img');
+    img.className = 'awning-static-img';
     img.src = AWNING_STATIC_IMAGES[type];
     img.alt = data.label;
-    img.style.cssText = 'width:100%;max-height:260px;object-fit:contain;display:block;background:#f0f3f8';
     img.onerror = function() { wrapper.style.display = 'none'; };
     wrapper.appendChild(img);
     svgEl.appendChild(wrapper);
@@ -956,25 +1018,25 @@ function updateAwningPreview(type) {
   var count = data.images.length;
   _awIdx[type] = 0;
   var carousel = document.createElement('div');
-  carousel.className = 'aw-carousel';
-  carousel.style.cssText = 'position:relative;overflow:hidden;border-radius:6px;height:220px';
+  carousel.className = 'aw-carousel aw-carousel-js';
   var slides = document.createElement('div');
-  slides.className = 'aw-slides';
-  slides.style.cssText = 'display:flex;transition:transform 0.4s ease;height:100%;will-change:transform';
+  slides.className = 'aw-slides aw-slides-js';
   slides.dataset.i = '0';
   data.images.forEach(function(src) {
     var img = document.createElement('img');
     img.src = src;
     img.alt = data.label;
-    img.style.cssText = 'min-width:100%;height:220px;object-fit:cover;flex-shrink:0';
+    img.className = 'aw-carousel-js-img';
     img.onerror = function() { this.style.display = 'none'; };
     slides.appendChild(img);
   });
   carousel.appendChild(slides);
   var dotsEl = document.createElement('div');
-  dotsEl.style.cssText = 'position:absolute;bottom:6px;left:50%;transform:translateX(-50%);display:flex;gap:4px';
+  dotsEl.className = 'aw-preview-dots';
   var prev = document.createElement('button');
-  prev.style.cssText = 'position:absolute;left:6px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.4);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;z-index:2';
+  prev.type = 'button';
+  prev.className = 'aw-preview-nav aw-preview-nav--prev';
+  prev.setAttribute('aria-label', 'Предыдущее фото');
   prev.textContent = '\u2039';
   prev.addEventListener('click', function() {
     var i = parseInt(slides.dataset.i || '0');
@@ -984,7 +1046,9 @@ function updateAwningPreview(type) {
     updateDots(dotsEl, i, count);
   });
   var next = document.createElement('button');
-  next.style.cssText = 'position:absolute;right:6px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.4);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;z-index:2';
+  next.type = 'button';
+  next.className = 'aw-preview-nav aw-preview-nav--next';
+  next.setAttribute('aria-label', 'Следующее фото');
   next.textContent = '\u203a';
   next.addEventListener('click', function() {
     var i = parseInt(slides.dataset.i || '0');

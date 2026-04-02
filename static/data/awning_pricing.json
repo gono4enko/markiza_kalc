@@ -101,19 +101,55 @@
   },
 
   "_motor_costs": {
-    "_comment": "Стоимость электропривода (до умножения на euro_rate)",
+    "_comment": "Устарело: сумма привод+пульт; если задан _motor_body_costs, не используется в расчёте",
     "somfy":    340,
     "simu":     225,
     "decolife": 120,
     "manual":   50
   },
 
+  "_motor_body_costs": {
+    "_comment": "Трубчатый привод без пульта, локтевая/витринная (EUR). Ручное — отдельная строка.",
+    "somfy":    275,
+    "simu":     175,
+    "decolife": 85,
+    "manual":   50
+  },
+
+  "_remote_costs": {
+    "_comment": "Пульты (EUR): single — одна маркиза; dual_light — отдельные каналы маркиза+LED; multi — несколько маркиз",
+    "somfy": {
+      "single": { "label": "Пульт 1 канал (Telis 1 RTS)", "eur": 65 },
+      "dual_light": { "label": "Пульт 2 канала — маркиза и LED (Situo 5 RTS)", "eur": 95 },
+      "multi": { "label": "Многоканальный пульт (Telis 16 RTS)", "eur": 125 }
+    },
+    "simu": {
+      "single": { "label": "Пульт 1 канал", "eur": 50 },
+      "dual_light": { "label": "Пульт 2 канала — маркиза и LED", "eur": 75 },
+      "multi": { "label": "Многоканальный пульт", "eur": 95 }
+    },
+    "decolife": {
+      "single": { "label": "Пульт 1 канал", "eur": 35 },
+      "dual_light": { "label": "Пульт 2 канала — маркиза и LED", "eur": 55 },
+      "multi": { "label": "Многоканальный пульт", "eur": 70 }
+    }
+  },
+
   "_motor_zip_costs": {
-    "_comment": "Стоимость привода ZIP (small = ширина<=3.5м и высота<=4.0м)",
+    "_comment": "Устарело: сумма привод+пульт ZIP",
     "somfy_small":  245,
     "somfy_large":  295,
     "simu":         225,
     "decolife":     165,
+    "manual":       50
+  },
+
+  "_motor_zip_body_costs": {
+    "_comment": "Трубчатый привод ZIP без пульта (EUR)",
+    "somfy_small":  180,
+    "somfy_large":  230,
+    "simu":         175,
+    "decolife":     130,
     "manual":       50
   },
 
@@ -139,6 +175,84 @@
     "standard_cassette": { "min": 25000, "pct": 0.13 },
     "storefront":        { "min": 15000, "pct": 0.20 },
     "zip":               { "_comment": "цена за м²: width × height × price_per_sqm × euro_rate", "price_per_sqm": 20 }
+  },
+
+  "_automation_eur": {
+    "_comment": "Автоматика по виду маркизы (EUR). В API бренд gaviota = ключ decolife.",
+    "elbow": {
+      "motor_body": { "somfy": 300, "simu": 200, "decolife": 100 },
+      "manual_eur": 50,
+      "remotes": {
+        "somfy": {
+          "single": { "label": "Situo RTS Pure 1k / 5k", "eur": 40 },
+          "dual_light": { "label": "Telis RTS Patio 1k / 4k", "eur": 60 },
+          "multi": { "label": "Telis RTS Pure с ЖКИ 16k", "eur": 190 }
+        },
+        "simu": {
+          "single": { "label": "Simu RTS 1k", "eur": 25 },
+          "dual_light": { "label": "Simu RTS с ЖКИ 5k", "eur": 40 },
+          "multi": { "label": "Simu RTS с ЖКИ 16k", "eur": 90 }
+        },
+        "decolife": {
+          "single": { "label": "Пульт Gaviota 1k", "eur": 20 },
+          "dual_light": { "label": "Пульт Gaviota 15k ЖКИ", "eur": 30 },
+          "multi": { "label": "Кнопка Gaviota 15k ЖКИ", "eur": 30 }
+        }
+      },
+      "sensor_radio": { "somfy": 120, "simu": 80, "decolife": 90 },
+      "sensor_speed": { "somfy": 120, "simu": 120, "decolife": 90 }
+    },
+    "storefront": {
+      "motor_body": { "somfy": 300, "simu": 200, "decolife": 100 },
+      "manual_eur": 50,
+      "remotes": {
+        "somfy": {
+          "single": { "label": "Situo RTS Pure 1k / 5k", "eur": 40 },
+          "dual_light": { "label": "Telis RTS Patio 1k / 4k", "eur": 60 },
+          "multi": { "label": "Telis RTS Pure с ЖКИ 16k", "eur": 190 }
+        },
+        "simu": {
+          "single": { "label": "Simu RTS 1k", "eur": 25 },
+          "dual_light": { "label": "Simu RTS с ЖКИ 5k", "eur": 40 },
+          "multi": { "label": "Simu RTS с ЖКИ 16k", "eur": 90 }
+        },
+        "decolife": {
+          "single": { "label": "Пульт Gaviota 1k", "eur": 20 },
+          "dual_light": { "label": "Пульт Gaviota 15k ЖКИ", "eur": 30 },
+          "multi": { "label": "Кнопка Gaviota 15k ЖКИ", "eur": 30 }
+        }
+      },
+      "sensor_radio": { "somfy": 120, "simu": 80, "decolife": 90 },
+      "sensor_speed": { "somfy": 120, "simu": 120, "decolife": 90 }
+    },
+    "zip": {
+      "motor_zip": {
+        "somfy_small": 180,
+        "somfy_large": 230,
+        "simu": 175,
+        "decolife": 130
+      },
+      "manual_eur": 50,
+      "remotes": {
+        "somfy": {
+          "single": { "label": "Situo RTS Pure 1k / 5k", "eur": 40 },
+          "dual_light": { "label": "Telis RTS Patio 1k / 4k", "eur": 60 },
+          "multi": { "label": "Telis RTS Pure с ЖКИ 16k", "eur": 190 }
+        },
+        "simu": {
+          "single": { "label": "Simu RTS 1k", "eur": 25 },
+          "dual_light": { "label": "Simu RTS с ЖКИ 5k", "eur": 40 },
+          "multi": { "label": "Simu RTS с ЖКИ 16k", "eur": 90 }
+        },
+        "decolife": {
+          "single": { "label": "Пульт Gaviota 1k", "eur": 20 },
+          "dual_light": { "label": "Пульт Gaviota 15k ЖКИ", "eur": 30 },
+          "multi": { "label": "Кнопка Gaviota 15k ЖКИ", "eur": 30 }
+        }
+      },
+      "sensor_radio": { "somfy": 120, "simu": 80, "decolife": 90 },
+      "sensor_speed": { "somfy": 120, "simu": 120, "decolife": 90 }
+    }
   },
 
   "_delivery_pct": 0.10

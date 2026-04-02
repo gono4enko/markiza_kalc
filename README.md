@@ -6,13 +6,16 @@
 
 ## Быстрый старт (локально)
 
+На macOS (Homebrew Python) без venv `pip install` в систему обычно **запрещён** (PEP 668) — приложение не найдёт `requests`, `Flask` и т.д. Сначала создайте окружение.
+
 ```bash
-python3 -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
+python3 -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env       # заполните при необходимости
 export FLASK_APP=app.py
 flask run --host 127.0.0.1 --port 5000
+# или: python app.py
 ```
 
 Откройте http://127.0.0.1:5000/

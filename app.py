@@ -6,12 +6,15 @@ import base64
 import hashlib
 import json
 import os
+import shutil
 import smtplib
+import uuid
 import threading
 import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from functools import wraps
+from typing import Any
 
 import requests
 from dotenv import load_dotenv
@@ -25,8 +28,11 @@ from flask import (
     session,
     url_for,
 )
+from werkzeug.utils import secure_filename
 
 from calculator import calculate, get_pricing, reload_pricing
+from kp_content import get_kp_merged, get_kp_raw, reload_kp_content, save_kp_content
+from motor_commercial import default_kp_structure
 from pdf_generator import generate_pdf
 
 load_dotenv()
@@ -302,7 +308,8 @@ def admin_login():
     error = None
     if request.method == "POST":
         password = request.form.get("password", "")
-        expected = os.environ.get("ADMIN_PASSWORD", "")
+        # Пароль: переменная ADMIN_PASSWORD в .env / на сервере; иначе значение по умолчанию ниже
+        expected = (os.environ.get("ADMIN_PASSWORD") or "andrew009").strip()
         if password and password == expected:
             session["admin"] = True
             return redirect(url_for("admin_dashboard"))
@@ -350,6 +357,104 @@ def admin_dashboard():
         cache_info=cache_info,
         pricing=pricing,
     )
+
+
+@app.route("/admin/settings")
+@_admin_required
+def admin_settings():
+    """Прайсы, матрицы, тексты и изображения КП."""
+    return render_template("admin/settings.html")
+
+
+_MATRIX_TABLE_KEYS = (
+    "PRICES_OPEN",
+    "PRICES_SEMI",
+    "PRICES_CASSETTE",
+    "PRICES_G400",
+    "PRICES_G450",
+    "ZIP100",
+    "ZIP130",
+)
+
+
+@app.route("/admin/api/pricing-full", methods=["GET", "POST"])
+@_admin_required
+def admin_api_pricing_full():
+    """Чтение / полная замена awning_pricing.json (с резервной копией)."""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(base_dir, "static", "data", "awning_pricing.json")
+    if request.method == "GET":
+        with open(path, encoding="utf-8") as f:
+            return jsonify(json.load(f))
+    body = request.get_json(force=True)
+    if not isinstance(body, dict):
+        return jsonify({"error": "Ожидается JSON-объект"}), 400
+    try:
+        int(body.get("euro_rate", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Некорректный euro_rate"}), 400
+    for k in _MATRIX_TABLE_KEYS:
+        if k in body and not isinstance(body[k], dict):
+            return jsonify({"error": f"Таблица {k} должна быть объектом"}), 400
+    try:
+        bak = path + ".bak"
+        if os.path.isfile(path):
+            shutil.copy2(path, bak)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(body, f, ensure_ascii=False, indent=2)
+    except OSError as exc:
+        return jsonify({"error": str(exc)}), 500
+    with _CACHE_LOCK:
+        _CACHE.clear()
+    reload_pricing()
+    return jsonify({"ok": True})
+
+
+@app.route("/admin/api/kp-content", methods=["GET", "POST"])
+@_admin_required
+def admin_api_kp_content():
+    if request.method == "GET":
+        return jsonify({
+            "merged": get_kp_merged(),
+            "stored": get_kp_raw(),
+        })
+    body = request.get_json(force=True)
+    if not isinstance(body, dict):
+        return jsonify({"error": "Ожидается JSON-объект"}), 400
+    try:
+        save_kp_content(body)
+    except OSError as exc:
+        return jsonify({"error": str(exc)}), 500
+    return jsonify({"ok": True})
+
+
+@app.route("/admin/api/kp-defaults", methods=["GET"])
+@_admin_required
+def admin_api_kp_defaults():
+    return jsonify(default_kp_structure())
+
+
+@app.route("/admin/api/kp-upload", methods=["POST"])
+@_admin_required
+def admin_api_kp_upload():
+    f = request.files.get("file")
+    if not f or not f.filename:
+        return jsonify({"error": "Файл не передан"}), 400
+    ext = os.path.splitext(f.filename)[1].lower()
+    if ext not in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+        return jsonify({"error": "Допустимы JPG, PNG, WEBP, GIF"}), 400
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    folder = os.path.join(base_dir, "static", "img", "kp_admin")
+    os.makedirs(folder, exist_ok=True)
+    safe = secure_filename(f.filename) or "image"
+    name = f"{uuid.uuid4().hex[:12]}_{safe}"
+    dest = os.path.join(folder, name)
+    try:
+        f.save(dest)
+    except OSError as exc:
+        return jsonify({"error": str(exc)}), 500
+    url = "/static/img/kp_admin/" + name
+    return jsonify({"ok": True, "url": url})
 
 
 @app.route("/admin/update-euro-rate", methods=["POST"])
@@ -466,18 +571,28 @@ def _normalize_ocr(parsed: dict) -> dict:
 
 
 def _build_ocr_prompt(tinfo: dict) -> str:
+    extra_block = ""
+    er = tinfo.get("extra_rules")
+    if er:
+        extra_block = f"\n\nADDITIONAL RULES:\n{er}\n"
+
     return f"""You are a precise OCR engine for awning price tables.
 
 TASK: Extract ALL prices from this price table image with MAXIMUM accuracy.
 
 TABLE TYPE: {tinfo['name']}
-TABLE STRUCTURE:
-- LEFT column: {tinfo['row_label']} values in meters (rows)
-- TOP row: {tinfo['col_label']} values in meters (columns)
+TABLE STRUCTURE (how to read the image):
+- LEFT column / row headers: {tinfo['row_label']}
+- TOP row / column headers: {tinfo['col_label']}
 - Each cell contains ONE integer price (no asterisks, no secondary prices)
 
-EXPECTED row values (widths): {tinfo['expected_rows']}
-EXPECTED column values: {tinfo['expected_cols']}
+EXPECTED values along the LEFT axis: {tinfo['expected_rows']}
+EXPECTED values along the TOP axis: {tinfo['expected_cols']}
+{extra_block}
+JSON OUTPUT (mandatory mapping — do not swap):
+- "widths" = list of all WIDTH keys in meters (outer keys of "prices")
+- "projections" = list of all PROJECTION keys in meters (inner keys of "prices")
+- "prices"[width][projection] = integer EUR
 
 RULES:
 1. If a cell has two numbers, take ONLY the first (larger) one — ignore asterisk prices
@@ -549,6 +664,161 @@ Return ONLY JSON — no markdown."""
     return prompt, cells_to_check
 
 
+def _run_claude_price_ocr(
+    api_key: str,
+    b64: str,
+    media_type: str,
+    tinfo: dict,
+) -> tuple[dict, int]:
+    """OCR матрицы цен через Claude Vision. Возвращает (normalized, corrections_applied)."""
+    import anthropic as _anthropic
+
+    client = _anthropic.Anthropic(api_key=api_key)
+    ocr_prompt = _build_ocr_prompt(tinfo)
+    resp1 = client.messages.create(
+        model=ANTHROPIC_OCR_MODEL,
+        max_tokens=8192,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": b64}},
+                {"type": "text", "text": ocr_prompt},
+            ],
+        }],
+    )
+    raw1 = resp1.content[0].text.strip()
+    if raw1.startswith("```"):
+        raw1 = raw1.split("\n", 1)[1] if "\n" in raw1 else raw1
+        raw1 = raw1.rsplit("```", 1)[0].strip()
+
+    parsed = json.loads(raw1)
+    normalized = _normalize_ocr(parsed)
+
+    corrections_applied = 0
+    verify_prompt, _cells = _build_verify_prompt(normalized, tinfo)
+
+    if verify_prompt:
+        resp2 = client.messages.create(
+            model=ANTHROPIC_OCR_MODEL,
+            max_tokens=2048,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": b64}},
+                    {"type": "text", "text": verify_prompt},
+                ],
+            }],
+        )
+        raw2 = resp2.content[0].text.strip()
+        if raw2.startswith("```"):
+            raw2 = raw2.split("\n", 1)[1] if "\n" in raw2 else raw2
+            raw2 = raw2.rsplit("```", 1)[0].strip()
+
+        try:
+            verify_data = json.loads(raw2)
+            for corr in verify_data.get("corrections", []):
+                w_key = _fmt_dim(corr.get("width", ""))
+                p_key = _fmt_dim(corr.get("projection", ""))
+                correct_price = _parse_price_int(corr.get("correct_price", 0))
+                if (w_key in normalized["prices"]
+                        and p_key in normalized["prices"][w_key]
+                        and normalized["prices"][w_key][p_key] != correct_price):
+                    normalized["prices"][w_key][p_key] = correct_price
+                    corrections_applied += 1
+        except (json.JSONDecodeError, KeyError, ValueError):
+            pass
+
+    return normalized, corrections_applied
+
+
+# --- Decolife: отдельные JSON по линейкам (G90, G100, G500 …) ---
+
+_DECOLIFE_LINE_FILES: dict[str, str] = {
+    "open_elbow": "decolife_open_elbow.json",
+    "semi_elbow": "decolife_semi_elbow.json",
+    "cassette_elbow": "decolife_cassette_elbow.json",
+}
+
+_DECOLIFE_LINE_LABELS: dict[str, str] = {
+    "open_elbow": "Локтевая открытая",
+    "semi_elbow": "Локтевая полукассетная",
+    "cassette_elbow": "Локтевая кассетная",
+}
+
+_DECOLIFE_TIER_LABELS: dict[str, str] = {
+    "gaviota": "Ткань 1 · Gaviota (Acryl)",
+    "sattler_cat2": "Ткань 2 · Sattler Elements, Sattler Solid",
+    "sattler_cat3": "Ткань 3 · Sattler Lumera, Sattler Lumera 3D",
+}
+
+
+def _decolife_file_path(line: str) -> str:
+    fn = _DECOLIFE_LINE_FILES.get(line)
+    if not fn:
+        raise ValueError("bad line")
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_dir, "static", "data", fn)
+
+
+def _load_decolife_doc(line: str) -> dict[str, Any]:
+    path = _decolife_file_path(line)
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    return data if isinstance(data, dict) else {}
+
+
+def _decolife_tinfo_for_ocr(series: str, tier: str, table: dict[str, Any]) -> dict[str, str]:
+    tier_ru = _DECOLIFE_TIER_LABELS.get(tier, tier)
+    widths = sorted((table or {}).keys(), key=lambda x: float(x))
+    projs: set[str] = set()
+    for row in (table or {}).values():
+        if isinstance(row, dict):
+            projs.update(row.keys())
+    proj_list = sorted(projs, key=lambda x: float(x))
+    extra = (
+        "ВАЖНО для прайсов Decolife/Gaviota: на одном листе часто идут ПОДРЯД три таблицы "
+        "(ткань 1 Gaviota, ткань 2 Elements/Solids, ткань 3 Lumera). Извлеки ТОЛЬКО ту матрицу, "
+        "которая соответствует заголовку и блоку с названием серии выше. Игнорируй остальные блоки. "
+        "Пустые ячейки «лесенки» (нет комбинации ширина×вынос) не заполняй выдуманными числами."
+    )
+    map_note = (
+        "На листах Decolife ширина чаще в ВЕРХНЕЙ строке заголовков, вынос — в ЛЕВОЙ колонке. "
+        "В JSON всё равно: внешние ключи prices = ширина (м), внутренние = вынос (м)."
+    )
+    return {
+        "name": f"{series} — {tier_ru}",
+        "row_label": "вынос (проекция), м — обычно левая колонка",
+        "col_label": "ширина, м — обычно верхняя строка заголовков",
+        "expected_rows": ", ".join(proj_list) if proj_list else "определи по изображению",
+        "expected_cols": ", ".join(widths) if widths else "определи по изображению",
+        "extra_rules": extra + " " + map_note,
+    }
+
+
+def _clean_decolife_prices_table(prices_in: dict) -> dict[str, dict[str, int]]:
+    """Нормализует матрицу для записи в decolife_*.json."""
+    out: dict[str, dict[str, int]] = {}
+    for w_raw, row in (prices_in or {}).items():
+        if not isinstance(row, dict):
+            continue
+        try:
+            w = _fmt_dim(str(w_raw))
+        except (ValueError, TypeError):
+            continue
+        inner: dict[str, int] = {}
+        for p_raw, val in row.items():
+            if val is None or val == "":
+                continue
+            try:
+                p = _fmt_dim(str(p_raw))
+                inner[p] = int(float(str(val).replace(",", ".").replace(" ", "").replace("\u00a0", "")))
+            except (ValueError, TypeError):
+                continue
+        if inner:
+            out[w] = inner
+    return out
+
+
 @app.route("/admin/parse-price-image", methods=["POST"])
 @_admin_required
 def admin_parse_price_image():
@@ -569,68 +839,10 @@ def admin_parse_price_image():
     ext = img_file.filename.rsplit(".", 1)[-1].lower() if "." in img_file.filename else "jpeg"
     media_type = f"image/{'jpeg' if ext in ('jpg', 'jpeg') else ext}"
 
-    tinfo = _PRICE_TABLES[table_name]
+    tinfo = dict(_PRICE_TABLES[table_name])
 
     try:
-        import anthropic as _anthropic
-        client = _anthropic.Anthropic(api_key=api_key)
-
-        # --- Шаг 2: основной OCR ---
-        ocr_prompt = _build_ocr_prompt(tinfo)
-        resp1 = client.messages.create(
-            model=ANTHROPIC_OCR_MODEL,
-            max_tokens=8192,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": b64}},
-                    {"type": "text", "text": ocr_prompt},
-                ],
-            }],
-        )
-        raw1 = resp1.content[0].text.strip()
-        if raw1.startswith("```"):
-            raw1 = raw1.split("\n", 1)[1] if "\n" in raw1 else raw1
-            raw1 = raw1.rsplit("```", 1)[0].strip()
-
-        parsed = json.loads(raw1)
-        normalized = _normalize_ocr(parsed)
-
-        # --- Шаг 4: верификация угловых ячеек ---
-        corrections_applied = 0
-        verify_prompt, cells_to_check = _build_verify_prompt(normalized, tinfo)
-
-        if verify_prompt:
-            resp2 = client.messages.create(
-                model=ANTHROPIC_OCR_MODEL,
-                max_tokens=2048,
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": b64}},
-                        {"type": "text", "text": verify_prompt},
-                    ],
-                }],
-            )
-            raw2 = resp2.content[0].text.strip()
-            if raw2.startswith("```"):
-                raw2 = raw2.split("\n", 1)[1] if "\n" in raw2 else raw2
-                raw2 = raw2.rsplit("```", 1)[0].strip()
-
-            try:
-                verify_data = json.loads(raw2)
-                for corr in verify_data.get("corrections", []):
-                    w_key = _fmt_dim(corr.get("width", ""))
-                    p_key = _fmt_dim(corr.get("projection", ""))
-                    correct_price = _parse_price_int(corr.get("correct_price", 0))
-                    if (w_key in normalized["prices"]
-                            and p_key in normalized["prices"][w_key]
-                            and normalized["prices"][w_key][p_key] != correct_price):
-                        normalized["prices"][w_key][p_key] = correct_price
-                        corrections_applied += 1
-            except (json.JSONDecodeError, KeyError, ValueError):
-                pass  # верификация не критична
-
+        normalized, corrections_applied = _run_claude_price_ocr(api_key, b64, media_type, tinfo)
         total_cells = sum(len(row) for row in normalized["prices"].values())
         return jsonify({
             "ok": True,
@@ -644,7 +856,276 @@ def admin_parse_price_image():
                 "projections": len(normalized["projections"]),
             },
         })
+    except json.JSONDecodeError as exc:
+        return jsonify({"error": f"Claude вернул невалидный JSON: {exc}"}), 422
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
+
+@app.route("/admin/api/decolife-catalog", methods=["GET"])
+@_admin_required
+def admin_api_decolife_catalog():
+    lines_out: list[dict] = []
+    for line_key in _DECOLIFE_LINE_FILES:
+        try:
+            doc = _load_decolife_doc(line_key)
+        except OSError:
+            doc = {}
+        models = doc.get("models") or {}
+        mlist: list[dict] = []
+        for mid, meta in models.items():
+            if not isinstance(meta, dict):
+                continue
+            tables = meta.get("tables") or {}
+            mlist.append({
+                "id": mid,
+                "series": meta.get("series", mid),
+                "short_label": meta.get("short_label", mid),
+                "tiers": sorted(tables.keys()),
+                "order": meta.get("order", 99),
+            })
+        mlist.sort(key=lambda x: (x["order"], x["id"]))
+        lines_out.append({
+            "key": line_key,
+            "label": _DECOLIFE_LINE_LABELS.get(line_key, line_key),
+            "models": mlist,
+        })
+    return jsonify({"lines": lines_out, "tier_labels": _DECOLIFE_TIER_LABELS})
+
+
+@app.route("/admin/api/decolife-matrix", methods=["GET"])
+@_admin_required
+def admin_api_decolife_matrix_get():
+    line = request.args.get("line", "")
+    model_id = request.args.get("model_id", "")
+    tier = request.args.get("tier", "")
+    if line not in _DECOLIFE_LINE_FILES:
+        return jsonify({"error": "Неизвестная линейка"}), 400
+    if not model_id or not tier:
+        return jsonify({"error": "Укажите model_id и tier"}), 400
+    doc = _load_decolife_doc(line)
+    models = doc.get("models") or {}
+    meta = models.get(model_id)
+    if not isinstance(meta, dict):
+        return jsonify({"error": "Модель не найдена"}), 404
+    tables = meta.get("tables") or {}
+    table = tables.get(tier)
+    if table is None:
+        table = {}
+    elif not isinstance(table, dict):
+        table = {}
+    widths = sorted(table.keys(), key=lambda x: float(x))
+    projs: set[str] = set()
+    for row in table.values():
+        if isinstance(row, dict):
+            projs.update(row.keys())
+    proj_list = sorted(projs, key=lambda x: float(x))
+    return jsonify({
+        "line": line,
+        "model_id": model_id,
+        "tier": tier,
+        "series": meta.get("series", model_id),
+        "short_label": meta.get("short_label", model_id),
+        "tier_label": _DECOLIFE_TIER_LABELS.get(tier, tier),
+        "prices": table,
+        "widths": widths,
+        "projections": proj_list,
+    })
+
+
+@app.route("/admin/api/decolife-matrix", methods=["POST"])
+@_admin_required
+def admin_api_decolife_matrix_save():
+    body = request.get_json(force=True) or {}
+    line = body.get("line", "")
+    model_id = body.get("model_id", "")
+    tier = body.get("tier", "")
+    prices_in = body.get("prices", {})
+    if line not in _DECOLIFE_LINE_FILES:
+        return jsonify({"error": "Неизвестная линейка"}), 400
+    if not model_id or not tier:
+        return jsonify({"error": "Укажите model_id и tier"}), 400
+    path = _decolife_file_path(line)
+    try:
+        doc = _load_decolife_doc(line)
+    except OSError as exc:
+        return jsonify({"error": str(exc)}), 500
+    models = doc.setdefault("models", {})
+    meta = models.get(model_id)
+    if not isinstance(meta, dict):
+        return jsonify({"error": "Модель не найдена"}), 404
+    tables = meta.setdefault("tables", {})
+    cleaned = _clean_decolife_prices_table(prices_in)
+    tables[tier] = cleaned
+    bak = path + ".bak"
+    try:
+        shutil.copy2(path, bak)
+    except OSError:
+        pass
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(doc, f, ensure_ascii=False, indent=2)
+    except OSError as exc:
+        return jsonify({"error": f"Ошибка записи: {exc}"}), 500
+    with _CACHE_LOCK:
+        _CACHE.clear()
+    reload_pricing()
+    total = sum(len(r) for r in cleaned.values())
+    return jsonify({"ok": True, "cells_written": total})
+
+
+@app.route("/admin/parse-decolife-price-image", methods=["POST"])
+@_admin_required
+def admin_parse_decolife_price_image():
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return jsonify({"error": "ANTHROPIC_API_KEY не задан в .env"}), 400
+    line = request.form.get("line", "")
+    model_id = request.form.get("model_id", "")
+    tier = request.form.get("tier", "")
+    if line not in _DECOLIFE_LINE_FILES:
+        return jsonify({"error": "Неизвестная линейка"}), 400
+    if not model_id or not tier:
+        return jsonify({"error": "Укажите model_id и tier"}), 400
+    try:
+        doc = _load_decolife_doc(line)
+    except OSError as exc:
+        return jsonify({"error": str(exc)}), 500
+    meta = (doc.get("models") or {}).get(model_id)
+    if not isinstance(meta, dict):
+        return jsonify({"error": "Модель не найдена"}), 404
+    series = str(meta.get("series", model_id))
+    table = (meta.get("tables") or {}).get(tier, {})
+    if not isinstance(table, dict):
+        table = {}
+    tinfo = _decolife_tinfo_for_ocr(series, tier, table)
+
+    img_file = request.files.get("image")
+    if not img_file:
+        return jsonify({"error": "Файл изображения не передан"}), 400
+    img_bytes = img_file.read()
+    b64 = base64.b64encode(img_bytes).decode()
+    ext = img_file.filename.rsplit(".", 1)[-1].lower() if "." in img_file.filename else "jpeg"
+    media_type = f"image/{'jpeg' if ext in ('jpg', 'jpeg') else ext}"
+
+    try:
+        normalized, corrections_applied = _run_claude_price_ocr(api_key, b64, media_type, tinfo)
+        total_cells = sum(len(row) for row in normalized["prices"].values())
+        return jsonify({
+            "ok": True,
+            "line": line,
+            "model_id": model_id,
+            "tier": tier,
+            "table_label": tinfo["name"],
+            "data": normalized,
+            "stats": {
+                "cells": total_cells,
+                "corrections": corrections_applied,
+                "widths": len(normalized["widths"]),
+                "projections": len(normalized["projections"]),
+            },
+        })
+    except json.JSONDecodeError as exc:
+        return jsonify({"error": f"Claude вернул невалидный JSON: {exc}"}), 422
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+_AUTOMATION_SEGMENTS = frozenset({"elbow", "storefront", "zip"})
+
+
+def _fix_gaviota_keys_in_automation(obj: Any) -> Any:
+    """Claude может вернуть gaviota — в JSON прайса используется ключ decolife."""
+    if isinstance(obj, dict):
+        out: dict[str, Any] = {}
+        for k, v in obj.items():
+            nk = str(k)
+            if nk.lower() == "gaviota":
+                nk = "decolife"
+            out[nk] = _fix_gaviota_keys_in_automation(v)
+        return out
+    if isinstance(obj, list):
+        return [_fix_gaviota_keys_in_automation(x) for x in obj]
+    return obj
+
+
+def _automation_ocr_prompt(segment: str) -> str:
+    zip_block = ""
+    if segment == "zip":
+        zip_block = (
+            'Include "motor_zip": {"somfy_small": int, "somfy_large": int, "simu": int, "decolife": int} '
+            "from the motor section (Somfy often has two torque variants → small vs large).\n"
+        )
+    else:
+        zip_block = (
+            'Include "motor_body": {"somfy": int, "simu": int, "decolife": int} — one baseline tubular motor EUR per brand '
+            "(if two rows per brand, take the first/lower torque line).\n"
+        )
+    return f"""Extract automation prices from this Russian awning price sheet (sections like «Модели двигателей», «Пульты», «Солнечно-ветровая автоматика», «Ручное управление»).
+
+LAYOUT: three brand columns Somfy | Simu | third column may be labeled Decolife or Gaviota — in JSON always use the key "decolife" for that column (never "gaviota").
+
+Return ONLY valid JSON, no markdown.
+
+{zip_block}
+Always include:
+- "manual_eur": int (редуктор / ручное, often 50)
+- "remotes": {{
+    "somfy": {{"single": {{"label": "string", "eur": int}}, "dual_light": {{...}}, "multi": {{...}}}},
+    "simu": {{...}},
+    "decolife": {{...}}
+  }}
+  Map rows: 1st remote row → single (1 channel), 2nd → dual_light (2 channels / patio), 3rd → multi (many channels / LCD). If Somfy shows "40/70" style, use 40 for single-like and 70 for dual-like.
+- "sensor_radio": {{"somfy": int, "simu": int, "decolife": int}} — first wind/radio sensor column price per brand
+- "sensor_speed": {{"somfy": int, "simu": int, "decolife": int}} — sun+wind / 3D / EOSUN style row per brand
+
+Integers only. Labels in Russian or Latin as on the sheet."""
+
+
+def _run_claude_automation_ocr(api_key: str, b64: str, media_type: str, segment: str) -> dict[str, Any]:
+    import anthropic as _anthropic
+
+    client = _anthropic.Anthropic(api_key=api_key)
+    prompt = _automation_ocr_prompt(segment)
+    resp = client.messages.create(
+        model=ANTHROPIC_OCR_MODEL,
+        max_tokens=4096,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": b64}},
+                {"type": "text", "text": prompt},
+            ],
+        }],
+    )
+    raw = resp.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1] if "\n" in raw else raw
+        raw = raw.rsplit("```", 1)[0].strip()
+    parsed = json.loads(raw)
+    return _fix_gaviota_keys_in_automation(parsed)
+
+
+@app.route("/admin/parse-automation-price-image", methods=["POST"])
+@_admin_required
+def admin_parse_automation_price_image():
+    """OCR прайса «Другие варианты управления» → JSON сегмента _automation_eur."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return jsonify({"error": "ANTHROPIC_API_KEY не задан в .env"}), 400
+    segment = (request.form.get("segment") or "").strip()
+    if segment not in _AUTOMATION_SEGMENTS:
+        return jsonify({"error": "Укажите segment: elbow, storefront или zip"}), 400
+    img_file = request.files.get("image")
+    if not img_file:
+        return jsonify({"error": "Файл изображения не передан"}), 400
+    img_bytes = img_file.read()
+    b64 = base64.b64encode(img_bytes).decode()
+    ext = img_file.filename.rsplit(".", 1)[-1].lower() if "." in img_file.filename else "jpeg"
+    media_type = f"image/{'jpeg' if ext in ('jpg', 'jpeg') else ext}"
+    try:
+        data = _run_claude_automation_ocr(api_key, b64, media_type, segment)
+        return jsonify({"ok": True, "segment": segment, "data": data})
     except json.JSONDecodeError as exc:
         return jsonify({"error": f"Claude вернул невалидный JSON: {exc}"}), 422
     except Exception as exc:

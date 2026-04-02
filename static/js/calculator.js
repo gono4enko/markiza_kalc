@@ -27,6 +27,8 @@
     motorBrand: 'decolife',
     sensorType: 'none',
     lightingOption: 'none',
+    /** Многоканальный пульт (несколько маркиз); иначе при LED — пульт 2 канала */
+    multiChannelRemote: false,
     installation: 'none',
     /** Выбранный оттенок стандартной ткани (локтевые / витринные) */
     fabricStdSwatch: null,
@@ -124,7 +126,7 @@
     },
     {
       id: 'soltisW88', label: 'Soltis W88', badge: 'Водонепр.',
-      desc: '100% водонепроницаемость (10 000 мм), лёгкая (490 г/м²). Квадратное переплетение, до 21% света. Подходит для пергол с защитой от дождя.',
+      desc: '100% водонепроницаемость (10 000 мм), лёгкая (490 г/м²). Квадратное переплетение, до 21% света. Подходит для маркиз с повышенной защитой от дождя.',
       fabrics: [
         {article:'W88-8102', short:'8102'},
         {article:'W88-1103', short:'1103'},
@@ -213,7 +215,7 @@
 
   var TOTAL_STEPS = 7;
   var PROJ_STANDARD = ['1.5', '2.0', '2.5', '3.0', '3.5'];
-  /** Открытая локтевая Decolife: до 4 м вылета (G200 — по прайсу; расчёт G200 в JSON пока без матрицы) */
+  /** Открытая локтевая Gaviota (прайс): до 4 м вылета (G200 — по прайсу; расчёт G200 в JSON пока без матрицы) */
   var PROJ_OPEN_DECOLIFE = ['1.5', '2.0', '2.5', '3.0', '3.5', '4.0'];
   /** Полукассетная G110 / G220 — до 4 м вылета */
   var PROJ_SEMI_DECOLIFE = ['1.5', '2.0', '2.5', '3.0', '3.5', '4.0'];
@@ -254,17 +256,17 @@
         {
           value: 'open',
           label: 'Открытая',
-          desc: 'Decolife: серия G90 / G100 / G300 подбирается по размерам и минимальной цене (прайс EUR × курс)',
+          desc: 'Gaviota: серия G90 / G100 / G300 подбирается по размерам и минимальной цене (прайс EUR × курс)',
         },
         {
           value: 'semi',
           label: 'Полукассетная',
-          desc: 'Decolife G110 / G220 — защитный козырёк над валом; серия по минимальной цене',
+          desc: 'Gaviota G110 / G220 — защитный козырёк над валом; серия по минимальной цене',
         },
         {
           value: 'cassette',
           label: 'Кассетная',
-          desc: 'Decolife G500 / G600 / G700 — полная защита ткани в коробе; серия по минимальной цене',
+          desc: 'Gaviota G500 / G600 / G700 — полная защита ткани в коробе; серия по минимальной цене',
         },
       ];
     }
@@ -1973,6 +1975,21 @@
   /* =====================================================================
      ШАГ 6: УПРАВЛЕНИЕ
   ===================================================================== */
+  function updateRemoteProfileHint() {
+    var hint = document.getElementById('remoteProfileHint');
+    if (!hint) return;
+    if (state.multiChannelRemote) {
+      hint.textContent =
+        'В расчёт идёт многоканальный пульт (несколько маркиз с одного пульта).';
+    } else if (state.lightingOption === 'standard' && state.awningType === 'standard') {
+      hint.textContent =
+        'При LED подсветке в расчёт идёт пульт с двумя каналами: маркиза и освещение управляются отдельно.';
+    } else {
+      hint.textContent =
+        'Одноканальный пульт для одной маркизы. Отметьте галочку ниже, если нужен многоканальный пульт.';
+    }
+  }
+
   function renderStep6() {
     syncCardGroup('controlCards', state.control);
     syncCardGroup('motorCards', state.motorBrand);
@@ -1988,6 +2005,16 @@
       ledGroup.style.display = (state.awningType === 'standard' && state.control === 'electric') ? 'block' : 'none';
     }
 
+    var rpg = document.getElementById('remoteProfileGroup');
+    if (rpg) {
+      rpg.style.display = state.control === 'electric' ? 'block' : 'none';
+    }
+    var mrcb = document.getElementById('multiChannelRemoteCb');
+    if (mrcb) {
+      mrcb.checked = !!state.multiChannelRemote;
+    }
+    updateRemoteProfileHint();
+
     // ZIP: скрываем весь блок датчиков
     var sensorSection = document.getElementById('sensorSection');
     if (sensorSection) {
@@ -1998,7 +2025,7 @@
       syncToggleGroup('sensorToggles', state.sensorType);
     }
 
-    // Cassette + Decolife: disable
+    // Cassette + Gaviota (motor decolife): disable
     var decoCard = document.getElementById('motorDecolife');
     if (decoCard) {
       var cassDisabled = state.awningType === 'standard' && state.config === 'cassette';
@@ -2087,7 +2114,18 @@
       state.motorBrand = value;
     });
     bindToggleGroup('sensorToggles', function (value) { state.sensorType = value; });
-    bindToggleGroup('ledToggles', function (value) { state.lightingOption = value; });
+    bindToggleGroup('ledToggles', function (value) {
+      state.lightingOption = value;
+      updateRemoteProfileHint();
+    });
+
+    var mrcb = document.getElementById('multiChannelRemoteCb');
+    if (mrcb) {
+      mrcb.addEventListener('change', function () {
+        state.multiChannelRemote = mrcb.checked;
+        updateRemoteProfileHint();
+      });
+    }
 
     // Install cards (Step 7)
     bindCardGroup('installCards', function (value) { state.installation = value; });
@@ -2244,7 +2282,7 @@
             showError('step3Error', posLabel + 'вылет должен быть от ' + minDim + ' до ' + maxDim + ' м');
             return false;
           }
-          // Скрещённые локти — только у складных локтевых (Decolife); витринные — выпадающие локти, правило не применяется.
+          // Скрещённые локти — только у складных локтевых (Gaviota); витринные — выпадающие локти, правило не применяется.
           if (state.awningType === 'standard') {
             if (pd >= w - 1e-9) {
               showError(
@@ -2334,6 +2372,9 @@
       shared.motor_brand = state.motorBrand;
       shared.sensor_type = state.sensorType;
       shared.lighting_option = state.lightingOption;
+      if (state.multiChannelRemote) {
+        shared.multi_channel_remote = true;
+      }
     }
 
     // Сохраняем параметры для кнопки PDF
