@@ -30,6 +30,161 @@
     installation: 'none',
     /** Выбранный оттенок стандартной ткани (локтевые / витринные) */
     fabricStdSwatch: null,
+    /** Спец. RAL из каталога (шаг «Цвет») */
+    customRalCode: '',
+    customRalHex: '#6B7280',
+    customRalName: '',
+  };
+
+  var ralCatalogPromise = null;
+  var _ralCatalogData = [];
+
+  function closeRalCatalogModal() {
+    var m = document.getElementById('ralCatalogModal');
+    if (!m) return;
+    m.classList.remove('visible');
+    m.setAttribute('aria-hidden', 'true');
+  }
+
+  function filterRalGrid(query) {
+    var grid = document.getElementById('ralCatalogGrid');
+    if (!grid) return;
+    var q = String(query || '').toLowerCase().trim();
+    grid.textContent = '';
+    _ralCatalogData.forEach(function (entry) {
+      var code = String(entry.code || '');
+      var name = String(entry.name || '');
+      var hex = String(entry.hex || '');
+      if (!code || !hex) return;
+      if (q && code.toLowerCase().indexOf(q) < 0 && name.toLowerCase().indexOf(q) < 0) return;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ral-catalog-item';
+      btn.setAttribute('data-code', code);
+      btn.setAttribute('data-hex', hex);
+      btn.setAttribute('data-name', name);
+      var sw = document.createElement('span');
+      sw.className = 'ral-catalog-swatch';
+      sw.style.background = hex;
+      var meta = document.createElement('div');
+      meta.className = 'ral-catalog-meta';
+      var cEl = document.createElement('div');
+      cEl.className = 'ral-catalog-code';
+      cEl.textContent = 'RAL ' + code;
+      var nEl = document.createElement('div');
+      nEl.className = 'ral-catalog-name';
+      nEl.textContent = name;
+      meta.appendChild(cEl);
+      meta.appendChild(nEl);
+      btn.appendChild(sw);
+      btn.appendChild(meta);
+      grid.appendChild(btn);
+    });
+  }
+
+  function ensureRalCatalog(done) {
+    if (ralCatalogPromise) {
+      ralCatalogPromise.then(function (d) { done(d); }).catch(function () { done([]); });
+      return;
+    }
+    ralCatalogPromise = fetch('/static/data/ral_catalog.json').then(function (r) {
+      return r.json();
+    });
+    ralCatalogPromise.then(function (d) {
+      _ralCatalogData = Array.isArray(d) ? d : [];
+      done(_ralCatalogData);
+    }).catch(function () {
+      _ralCatalogData = [];
+      done([]);
+    });
+  }
+
+  function openRalCatalogModal() {
+    var m = document.getElementById('ralCatalogModal');
+    if (!m) return;
+    m.classList.add('visible');
+    m.setAttribute('aria-hidden', 'false');
+    var search = document.getElementById('ralCatalogSearch');
+    if (search) {
+      search.value = '';
+      search.focus();
+    }
+    ensureRalCatalog(function () {
+      filterRalGrid('');
+    });
+  }
+
+  function applyRalSelection(entry) {
+    state.customRalCode = entry.code || '';
+    state.customRalHex = entry.hex || '#6B7280';
+    state.customRalName = entry.name || '';
+    closeRalCatalogModal();
+    updateCustomRalSwatchDots();
+  }
+
+  /** Точка на «Спец. RAL»: показываем выбранный цвет вместо радуги */
+  function updateCustomRalSwatchDots() {
+    function paint(rootId, active) {
+      var root = document.getElementById(rootId);
+      if (!root) return;
+      var sw = root.querySelector('.color-swatch[data-value="custom"]');
+      if (!sw) return;
+      var dot = sw.querySelector('.color-swatch-dot');
+      if (!dot) return;
+      if (active && state.customRalCode) {
+        dot.classList.remove('color-swatch-rainbow');
+        dot.style.background = state.customRalHex;
+        dot.style.border = '2px solid #c0c8d8';
+      } else {
+        dot.classList.add('color-swatch-rainbow');
+        dot.style.background = '';
+        dot.style.border = '';
+      }
+    }
+    paint('colorStdSwatches', state.awningType === 'standard' && state.frameColor === 'custom');
+    paint('colorStorefrontSwatches', state.awningType === 'storefront' && state.frameColor === 'custom');
+    paint('colorZipSwatches', state.awningType === 'zip' && state.frameColorZip === 'custom');
+  }
+
+  function initRalCatalogUiOnce() {
+    var modal = document.getElementById('ralCatalogModal');
+    if (!modal || modal.dataset.bound) return;
+    modal.dataset.bound = '1';
+    var bd = modal.querySelector('.ral-modal-backdrop');
+    var cls = modal.querySelector('.ral-modal-close');
+    var search = document.getElementById('ralCatalogSearch');
+    var grid = document.getElementById('ralCatalogGrid');
+    if (bd) bd.addEventListener('click', closeRalCatalogModal);
+    if (cls) cls.addEventListener('click', closeRalCatalogModal);
+    if (search) {
+      search.addEventListener('input', function () {
+        filterRalGrid(search.value);
+      });
+    }
+    if (grid) {
+      grid.addEventListener('click', function (e) {
+        var cell = e.target.closest('.ral-catalog-item');
+        if (!cell) return;
+        applyRalSelection({
+          code: cell.getAttribute('data-code') || '',
+          hex: cell.getAttribute('data-hex') || '',
+          name: cell.getAttribute('data-name') || '',
+        });
+      });
+    }
+  }
+
+  /** Сценарий под фото на результате — витринная маркиза (синхрон с motor_commercial.get_storefront_scenario) */
+  var STOREFRONT_SCENARIOS = {
+    somfy:
+      '9 утра: маркиза открылась по расписанию. Блики с витрины исчезли — ' +
+      'покупатели снова видят товары. Всё без участия персонала.',
+    simu:
+      'Нажали кнопку — маркиза опустилась перед витриной. ' +
+      'Блики пропали, витрина работает. Нажали ещё раз вечером — убралась.',
+    decolife:
+      'Солнце бьёт в витрину — товары не видны, покупатели проходят мимо. ' +
+      'Маркиза открылась в 9 утра: блики исчезли, витрина снова продаёт.',
   };
 
   /* =====================================================================
@@ -274,13 +429,17 @@
           value: 'g400',
           label: 'G400 Italy',
           desc:
-            'Gaviota — открытая витринная маркиза: лёгкий алюминиевый каркас, спускающиеся локти с пружиной (ветер не складывает полотно, хорошее натяжение ткани). В комплекте — универсальные настенно-потолочные кронштейны, угол 90°. До 7 м в ширину, вынос до 1,4 м.',
+            'Открытая витринная маркиза. Выпадающие локти на пружинах опускаются ' +
+            'вниз и растягивают полотно перед окном. Ширина до 7 м, вынос до 1,4 м. ' +
+            'В стандарте угол 90°, опция — до 170° (полная защита окна).',
         },
         {
           value: 'g450',
           label: 'G450 Desert',
           desc:
-            'Gaviota — кассетная витринная маркиза: герметичный короб защищает ткань и механизм от пыли и влаги, продлевая срок службы. Строгий дизайн; в стандарте потолочный крепёж и угол 90°. До 7 м в ширину, вынос до 1,25 м.',
+            'Кассетная витринная маркиза. Полотно и механизм убираются в короб — ' +
+            'защита от пыли и осадков, продлевает срок службы ткани. ' +
+            'Ширина до 5 м, максимальный вынос 1,0 м. Строгий дизайн.',
         },
       ];
     }
@@ -389,6 +548,23 @@
       if (line) {
         line.className = 'wz-step-line' + (i < state.step ? ' done' : '');
       }
+      var node = dot && dot.closest('.wz-step-node');
+      if (node) {
+        var canNav = i <= state.step;
+        node.classList.toggle('wz-step-node--clickable', canNav);
+        node.tabIndex = canNav ? 0 : -1;
+        var ltxt = lbl ? String(lbl.textContent || '').replace(/\s+/g, ' ').trim() : String(i);
+        if (i < state.step) {
+          node.title = 'Вернуться к этапу «' + ltxt + '»';
+          node.setAttribute('aria-label', 'Вернуться к этапу ' + i + ', ' + ltxt);
+        } else if (i === state.step) {
+          node.title = 'Текущий этап: ' + ltxt;
+          node.setAttribute('aria-label', 'Текущий этап ' + i + ', ' + ltxt);
+        } else {
+          node.removeAttribute('title');
+          node.setAttribute('aria-label', 'Этап ' + i + ', ' + ltxt + ' — сначала пройдите предыдущие шаги');
+        }
+      }
     }
   }
 
@@ -420,6 +596,7 @@
     if (step === 4) renderStep4();
     if (step === 5) renderStep5();
     if (step === 6) renderStep6();
+    if (step === 7) renderStep7();
   }
 
   /* =====================================================================
@@ -490,6 +667,11 @@
       } else {
         elbowPanel.classList.remove('visible');
       }
+    }
+
+    var sfDrop = document.getElementById('storefrontDropArmsInfo');
+    if (sfDrop) {
+      sfDrop.hidden = state.awningType !== 'storefront';
     }
 
     updateConfigPreview();
@@ -615,6 +797,26 @@
         ? 'Укажите ширину и высоту для каждой ZIP маркизы'
         : 'Укажите ширину и вылет для каждой маркизы';
     }
+    var mh = document.getElementById('sizeMeasureHint');
+    if (mh) {
+      mh.hidden = false;
+      if (state.awningType === 'zip') {
+        mh.innerHTML =
+          '📐 <b style="color:#1a2744">Как измерить:</b> ширина — проём между направляющими; высота — от пола (или нижней границы проёма) до точки верхнего крепления.';
+      } else if (state.awningType === 'storefront') {
+        mh.innerHTML =
+          '📐 <b style="color:#1a2744">Как измерить для витринной маркизы:</b> ' +
+          'Ширина — ширина окна или витрины (плюс небольшой запас по 10–15 см с каждой стороны). ' +
+          'Вынос — насколько далеко полотно отходит от стены (стандарт 0,8–1,0 м, максимум 1,4 м для G400).';
+      } else {
+        mh.innerHTML =
+          '📐 <b style="color:#1a2744">Как измерить:</b> ширина — проём между стенами или колоннами. Вылет — расстояние от стены до края полотна (насколько выдвигается тень).';
+      }
+    }
+    var pq = document.getElementById('sizeQuickPresets');
+    if (pq) pq.hidden = state.awningType === 'zip' || state.awningType === 'storefront';
+    var pqSf = document.getElementById('sizeQuickPresetsStorefront');
+    if (pqSf) pqSf.hidden = state.awningType !== 'storefront';
     var notice = document.getElementById('zipUpgradeNotice');
     if (notice) notice.classList.remove('visible');
     ensureItemDims();
@@ -670,12 +872,22 @@
     var isSf = state.awningType === 'storefront';
     fields.className = 'size-row-fields' + (isSf ? ' size-row-fields--sf5' : '');
 
-    // Width
+    // Width (+ слайдер для локтевой / витринной)
     var maxW = isZip ? 5 : (state.awningType === 'storefront' ? 7 : 6);
-    fields.appendChild(buildNumberField(
-      'Ширина, м', item.width, 2, maxW, 0.1,
-      function (v) { state.items[idx].width = v; if (state.awningType === 'zip') checkZipAutoSwitch(); }
-    ));
+    if (isZip) {
+      fields.appendChild(buildNumberField(
+        'Ширина, м', item.width, 2, maxW, 0.1,
+        function (v) { state.items[idx].width = v; if (state.awningType === 'zip') checkZipAutoSwitch(); }
+      ));
+    } else {
+      fields.appendChild(buildWidthFieldWithSlider(
+        item, idx, 2, maxW, 0.1,
+        function (v) {
+          state.items[idx].width = v;
+          refreshCrossedArmsWarning(idx);
+        }
+      ));
+    }
 
     // Projection or Height
     if (isZip) {
@@ -689,7 +901,10 @@
       if (projs.indexOf(selProj) === -1) selProj = projs[0];
       fields.appendChild(buildSelectField(
         'Вылет, м', projs, selProj,
-        function (v) { state.items[idx].dim = parseFloat(v); }
+        function (v) {
+          state.items[idx].dim = parseFloat(v);
+          refreshCrossedArmsWarning(idx);
+        }
       ));
     }
 
@@ -707,7 +922,118 @@
     }
 
     row.appendChild(fields);
+
+    if (!isZip && state.awningType === 'standard') {
+      var warn = document.createElement('div');
+      warn.id = 'size_warning_' + idx;
+      warn.className = 'size-warning-crossed';
+      warn.innerHTML =
+        '\u26A0 При вылете больше, чем ширина \u2212 0,5\u00a0м, возможны скрещённые локти. Мы подберём серию, которая справится, но уточните у менеджера.';
+      row.appendChild(warn);
+      refreshCrossedArmsWarning(idx);
+    }
+
     return row;
+  }
+
+  /** Подпись к слайдеру ширины: один знак после запятой, запятая как в UI (без артефактов float) */
+  function formatWidthSliderLabel(v) {
+    var n = parseFloat(v);
+    if (!isFinite(n)) n = 0;
+    n = Math.round(n * 10) / 10;
+    return n.toFixed(1).replace('.', ',') + ' м';
+  }
+
+  /** Слайдер ширины синхронизирован с полем ввода (шаг 3, не ZIP) */
+  function buildWidthFieldWithSlider(item, idx, min, max, step, onChange) {
+    var wrap = document.createElement('div');
+    wrap.className = 'size-row-field size-row-field--span-all';
+
+    var lbl = document.createElement('label');
+    lbl.textContent = 'Ширина, м';
+
+    var row = document.createElement('div');
+    row.className = 'width-slider-row';
+
+    function clampWidth(v) {
+      if (isNaN(v) || v < min) v = min;
+      if (v > max) v = max;
+      // Один десятичный знак вместо Math.round(v/step)*step — убирает 3.8000000000000003
+      return Math.round(v * 10) / 10;
+    }
+
+    var w0 = clampWidth(parseFloat(item.width));
+
+    var input = document.createElement('input');
+    input.type = 'number';
+    input.className = 'ch-input';
+    input.id = 'width_input_' + idx;
+    input.min = min;
+    input.max = max;
+    input.step = step;
+    input.value = w0;
+
+    var range = document.createElement('input');
+    range.type = 'range';
+    range.id = 'width_slider_' + idx;
+    range.min = min;
+    range.max = max;
+    range.step = step;
+    range.value = w0;
+
+    var span = document.createElement('span');
+    span.className = 'width-slider-val';
+    span.id = 'width_label_' + idx;
+    span.textContent = formatWidthSliderLabel(w0);
+
+    function syncFromInput() {
+      var v = clampWidth(parseFloat(input.value));
+      input.value = v;
+      range.value = v;
+      span.textContent = formatWidthSliderLabel(v);
+      onChange(v);
+    }
+
+    function syncFromRange() {
+      var v = clampWidth(parseFloat(range.value));
+      input.value = v;
+      span.textContent = formatWidthSliderLabel(v);
+      onChange(v);
+    }
+
+    input.addEventListener('change', syncFromInput);
+    input.addEventListener('input', function () {
+      var v = parseFloat(input.value);
+      if (!isNaN(v)) {
+        v = clampWidth(v);
+        range.value = v;
+        span.textContent = formatWidthSliderLabel(v);
+        onChange(v);
+      }
+    });
+    range.addEventListener('input', syncFromRange);
+
+    row.appendChild(input);
+    row.appendChild(range);
+    row.appendChild(span);
+    wrap.appendChild(lbl);
+    wrap.appendChild(row);
+    return wrap;
+  }
+
+  function refreshCrossedArmsWarning(idx) {
+    if (state.awningType !== 'standard') return;
+    var el = document.getElementById('size_warning_' + idx);
+    if (!el) return;
+    var item = state.items[idx];
+    if (!item) return;
+    var w = parseFloat(item.width);
+    var p = parseFloat(item.dim);
+    if (!isFinite(w) || !isFinite(p)) {
+      el.style.display = 'none';
+      return;
+    }
+    el.style.display = p > w - 0.5 ? 'block' : 'none';
   }
 
   function buildNumberField(labelText, value, min, max, step, onChange) {
@@ -888,6 +1214,9 @@
 
     if (stdGrp) stdGrp.style.display = isZip ? 'none' : 'block';
     if (zipGrp) zipGrp.style.display = isZip ? 'block' : 'none';
+
+    var sfFabCtx = document.getElementById('fabricStorefrontCtx');
+    if (sfFabCtx) sfFabCtx.hidden = isZip || state.awningType !== 'storefront';
 
     if (!isZip) {
       applyStdFabricCardDescriptions();
@@ -1968,6 +2297,103 @@
     } else {
       syncSwatchGroup('colorZipSwatches', state.frameColorZip);
     }
+    updateCustomRalSwatchDots();
+  }
+
+  /** Выбор цвета каркаса: сброс кастомного RAL или открытие каталога */
+  function handleFrameColorPick(isZip, value) {
+    if (isZip) {
+      state.frameColorZip = value;
+    } else {
+      state.frameColor = value;
+    }
+    var isCustom = value === 'custom';
+    if (!isCustom) {
+      state.customRalCode = '';
+      state.customRalHex = '#6B7280';
+      state.customRalName = '';
+    } else {
+      openRalCatalogModal();
+    }
+    updateCustomRalSwatchDots();
+  }
+
+  /** Сводка выбора на шаге «Монтаж» */
+  function renderStep7() {
+    var box = document.getElementById('installConfigSummary');
+    if (!box) return;
+    box.textContent = '';
+    function chip(text, accent) {
+      var s = document.createElement('span');
+      s.className = 'config-chip' + (accent ? ' config-chip--accent' : '');
+      s.textContent = text;
+      box.appendChild(s);
+    }
+    var atL = { standard: 'Локтевая', storefront: 'Витринная', zip: 'ZIP' };
+    chip(atL[state.awningType] || state.awningType, false);
+    var opts = getConfigOptions();
+    for (var i = 0; i < opts.length; i++) {
+      if (opts[i].value === state.config) {
+        chip(opts[i].label, false);
+        break;
+      }
+    }
+    var it0 = state.items[0];
+    if (it0) {
+      chip(it0.width + '\u00d7' + it0.dim + ' м', false);
+    }
+    if (state.awningType !== 'zip') {
+      var fl = {
+        gaviota: 'Gaviota',
+        elements: 'Sattler Elements',
+        solids: 'Sattler Solids',
+        lumera: 'Sattler Lumera',
+        lumera3d: 'Lumera 3D',
+      };
+      chip(fl[state.fabric] || state.fabric, false);
+    } else {
+      var zf = { veozip: 'Veosol / Veozip', soltis: 'Soltis 86/92', copaco: 'Copaco' };
+      chip(zf[state.fabricZip] || state.fabricZip, false);
+    }
+    if (state.control === 'electric') {
+      var ml = { somfy: 'Somfy', simu: 'Simu', decolife: 'Gaviota' };
+      chip(ml[state.motorBrand] || state.motorBrand, false);
+    }
+    if (state.awningType !== 'zip' && state.sensorType !== 'none') {
+      chip('+ датчик ветра', true);
+    }
+    if (state.awningType === 'standard' && state.control === 'electric' && state.lightingOption === 'standard') {
+      chip('+ LED подсветка', true);
+    }
+  }
+
+  /** Пресеты размеров (первая позиция) */
+  function applySizePreset(w, p) {
+    if (state.awningType === 'zip') return;
+    if (!state.items.length) return;
+    state.items[0].width = w;
+    var projs = getProjections();
+    var best = projs[0];
+    var bestDiff = Infinity;
+    projs.forEach(function (pv) {
+      var n = Math.abs(parseFloat(pv) - p);
+      if (n < bestDiff) {
+        bestDiff = n;
+        best = pv;
+      }
+    });
+    state.items[0].dim = parseFloat(best);
+    renderRows();
+  }
+
+  /** Динамическая строка срока изготовления под текущий месяц */
+  function getDeliveryNoteText() {
+    var m = new Date().getMonth() + 1;
+    if (m <= 3) return 'Сроки изготовления сейчас — 2–3 недели';
+    if (m <= 5) return 'Апрель–май — начало сезона: срок 3–4 недели, в июне будет 5–6';
+    if (m <= 8) return 'Пик сезона: срок изготовления 5–6 недель';
+    if (m <= 10) return 'Осень — свободные слоты: срок 2–3 недели';
+    return 'Зима — короткие сроки: изготовление 2 недели';
   }
 
   /* =====================================================================
@@ -1985,15 +2411,59 @@
   function updateRemoteProfileHint() {
     var hint = document.getElementById('remoteProfileHint');
     if (!hint) return;
-    var n = orderAwningCountTotal();
-    var led = state.lightingOption === 'standard' && state.awningType === 'standard';
-    var ch = led ? n * 2 : n;
     hint.textContent =
-      'Сейчас в расчёте ' +
-      n +
-      '\u00a0марк.' +
-      (led ? ' со встроенной LED — нужно ' + ch + '\u00a0радиоканалов' : ' — нужно ' + ch + '\u00a0радиоканал.') +
-      ' Модель пульта подбирается под бренд привода (Somfy / Simu / Gaviota) и вместимость в каналах из прайса. Один пульт на весь расчёт.';
+      'Пульт подбирается автоматически под ваш выбор и включён в стоимость. Один пульт управляет всеми маркизами в расчёте.';
+  }
+
+  /** Превью датчика ветровых колебаний под соответствующей кнопкой */
+  function updateWindSensorPreview() {
+    var el = document.getElementById('windSensorPreview');
+    if (!el) return;
+    var show =
+      state.control === 'electric' &&
+      state.awningType !== 'zip' &&
+      state.sensorType === 'radio';
+    if (show) {
+      el.classList.add('visible');
+      el.setAttribute('aria-hidden', 'false');
+    } else {
+      el.classList.remove('visible');
+      el.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  /** Превью датчика ветра и солнца под соответствующей кнопкой */
+  function updateSunWindSensorPreview() {
+    var el = document.getElementById('sunWindSensorPreview');
+    if (!el) return;
+    var show =
+      state.control === 'electric' &&
+      state.awningType !== 'zip' &&
+      state.sensorType === 'speed';
+    if (show) {
+      el.classList.add('visible');
+      el.setAttribute('aria-hidden', 'false');
+    } else {
+      el.classList.remove('visible');
+      el.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  /** Показ примеров LED в локтях (локтевая + электро + опция «С LED подсветкой») */
+  function updateLedPreviewRow() {
+    var row = document.getElementById('ledPreviewRow');
+    if (!row) return;
+    var show =
+      state.awningType === 'standard' &&
+      state.control === 'electric' &&
+      state.lightingOption === 'standard';
+    if (show) {
+      row.classList.add('visible');
+      row.setAttribute('aria-hidden', 'false');
+    } else {
+      row.classList.remove('visible');
+      row.setAttribute('aria-hidden', 'true');
+    }
   }
 
   function renderStep6() {
@@ -2017,6 +2487,11 @@
     }
     updateRemoteProfileHint();
 
+    var sfMotHint = document.getElementById('storefrontMotorHint');
+    if (sfMotHint) {
+      sfMotHint.hidden = !(state.awningType === 'storefront' && state.control === 'electric');
+    }
+
     // ZIP: скрываем весь блок датчиков
     var sensorSection = document.getElementById('sensorSection');
     if (sensorSection) {
@@ -2026,6 +2501,10 @@
       state.sensorType = 'none';
       syncToggleGroup('sensorToggles', state.sensorType);
     }
+
+    updateLedPreviewRow();
+    updateWindSensorPreview();
+    updateSunWindSensorPreview();
 
     // Cassette + Gaviota (motor decolife): disable
     var decoCard = document.getElementById('motorDecolife');
@@ -2074,6 +2553,8 @@
      ПРИВЯЗКА КЛИКОВ (вызывается один раз при DOMContentLoaded)
   ===================================================================== */
   function bindAll() {
+    initRalCatalogUiOnce();
+
     // Type cards (Step 1)
     bindCardGroup('typeCards', function (value) {
       state.awningType = value;
@@ -2103,9 +2584,15 @@
     });
 
     // Color swatches (Step 5)
-    bindSwatchGroup('colorStdSwatches', function (value) { state.frameColor = value; });
-    bindSwatchGroup('colorStorefrontSwatches', function (value) { state.frameColor = value; });
-    bindSwatchGroup('colorZipSwatches', function (value) { state.frameColorZip = value; });
+    bindSwatchGroup('colorStdSwatches', function (value) {
+      handleFrameColorPick(false, value);
+    });
+    bindSwatchGroup('colorStorefrontSwatches', function (value) {
+      handleFrameColorPick(false, value);
+    });
+    bindSwatchGroup('colorZipSwatches', function (value) {
+      handleFrameColorPick(true, value);
+    });
 
     // Control cards (Step 6)
     bindCardGroup('controlCards', function (value) {
@@ -2115,10 +2602,15 @@
     bindCardGroup('motorCards', function (value) {
       state.motorBrand = value;
     });
-    bindToggleGroup('sensorToggles', function (value) { state.sensorType = value; });
+    bindToggleGroup('sensorToggles', function (value) {
+      state.sensorType = value;
+      updateWindSensorPreview();
+      updateSunWindSensorPreview();
+    });
     bindToggleGroup('ledToggles', function (value) {
       state.lightingOption = value;
       updateRemoteProfileHint();
+      updateLedPreviewRow();
     });
 
     // Install cards (Step 7)
@@ -2135,6 +2627,46 @@
     if (calcBtn) calcBtn.addEventListener('click', doCalculate);
     if (addRowBtn) addRowBtn.addEventListener('click', addRow);
 
+    function bindSizePresetBar(barId) {
+      var bar = document.getElementById(barId);
+      if (!bar) return;
+      bar.addEventListener('click', function (e) {
+        var b = e.target.closest('.size-preset-btn');
+        if (!b) return;
+        var w = parseFloat(b.getAttribute('data-w'));
+        var p = parseFloat(b.getAttribute('data-p'));
+        if (isNaN(w) || isNaN(p)) return;
+        applySizePreset(w, p);
+      });
+    }
+    bindSizePresetBar('sizeQuickPresets');
+    bindSizePresetBar('sizeQuickPresetsStorefront');
+
+    // Клик / Enter по номеру этапа — возврат к уже пройденным шагам (вперёд по степперу не прыгаем)
+    var wzProgress = document.querySelector('.wz-progress');
+    if (wzProgress && !wzProgress.dataset.stepNavBound) {
+      wzProgress.dataset.stepNavBound = '1';
+      wzProgress.addEventListener('click', function (e) {
+        var node = e.target.closest('.wz-step-node');
+        if (!node || !node.classList.contains('wz-step-node--clickable')) return;
+        var raw = node.getAttribute('data-wz-step');
+        var n = raw ? parseInt(raw, 10) : NaN;
+        if (isNaN(n) || n > state.step || n === state.step) return;
+        goTo(n, true);
+      });
+      wzProgress.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        var t = e.target;
+        if (!t || !t.classList || !t.classList.contains('wz-step-node')) return;
+        if (!t.classList.contains('wz-step-node--clickable')) return;
+        var raw = t.getAttribute('data-wz-step');
+        var n = raw ? parseInt(raw, 10) : NaN;
+        if (isNaN(n) || n > state.step || n === state.step) return;
+        e.preventDefault();
+        goTo(n, true);
+      });
+    }
+
     var fabricBackdrop = document.getElementById('fabricNavFloatBackdrop');
     var fabricDismiss = document.getElementById('fabricFloatDismiss');
     var fabricFPrev = document.getElementById('fabricFloatPrev');
@@ -2146,6 +2678,12 @@
 
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape') return;
+      var ralM = document.getElementById('ralCatalogModal');
+      if (ralM && ralM.classList.contains('visible')) {
+        closeRalCatalogModal();
+        e.preventDefault();
+        return;
+      }
       var fRoot = document.getElementById('fabricNavFloat');
       if (!fRoot || !fRoot.classList.contains('visible')) return;
       var vLb = document.getElementById('vzLightbox');
@@ -2302,6 +2840,14 @@
       }
       if (isZip) checkZipAutoSwitch();
     }
+    if (step === 5) {
+      var zipC = state.awningType === 'zip' && state.frameColorZip === 'custom';
+      var stdC = state.awningType !== 'zip' && state.frameColor === 'custom';
+      if ((zipC || stdC) && !state.customRalCode) {
+        showError('step5Error', 'Выберите номер RAL в каталоге (кнопка «Спец. RAL»).');
+        return false;
+      }
+    }
     return true;
   }
 
@@ -2324,6 +2870,12 @@
   ===================================================================== */
   function doCalculate() {
     var calcBtn = document.getElementById('wzCalc');
+    var zipC = state.awningType === 'zip' && state.frameColorZip === 'custom';
+    var stdC = state.awningType !== 'zip' && state.frameColor === 'custom';
+    if ((zipC || stdC) && !state.customRalCode) {
+      alert('Для спец. цвета каркаса выберите номер RAL в каталоге (шаг «Цвет каркаса»).');
+      return;
+    }
     if (calcBtn) { calcBtn.disabled = true; calcBtn.textContent = 'Считаем…'; }
 
     if (state.awningType !== 'zip') {
@@ -2354,11 +2906,24 @@
         shared.copaco_collection = state.copacoCollection;
       }
       shared.frame_color_zip = state.frameColorZip;
+      if (state.frameColorZip === 'custom' && state.customRalCode) {
+        shared.frame_custom_ral = state.customRalCode;
+        shared.frame_custom_ral_hex = state.customRalHex;
+        shared.frame_custom_ral_name = state.customRalName;
+      }
     } else {
       shared.fabric = state.fabric;
       shared.frame_color = state.frameColor;
+      if (state.frameColor === 'custom' && state.customRalCode) {
+        shared.frame_custom_ral = state.customRalCode;
+        shared.frame_custom_ral_hex = state.customRalHex;
+        shared.frame_custom_ral_name = state.customRalName;
+      }
       if (state.fabricStdSwatch && state.fabricStdSwatch.label) {
         shared.fabric_color_label = state.fabricStdSwatch.label;
+      }
+      if (state.fabricStdSwatch && state.fabricStdSwatch.url) {
+        shared.fabric_swatch_url = state.fabricStdSwatch.url;
       }
     }
 
@@ -2454,6 +3019,11 @@
         );
       }
     });
+    if (state.awningType === 'zip' && state.frameColorZip === 'custom' && state.customRalCode) {
+      textLines.push('Цвет каркаса ZIP: RAL ' + state.customRalCode + ' — ' + state.customRalName);
+    } else if (state.awningType !== 'zip' && state.frameColor === 'custom' && state.customRalCode) {
+      textLines.push('Цвет каркаса: RAL ' + state.customRalCode + ' — ' + state.customRalName);
+    }
     textLines.push('ИТОГО: ' + grandTotal.toLocaleString('ru-RU') + '\u00a0\u20bd');
     window._calcText = textLines.join('\n');
 
@@ -2465,6 +3035,18 @@
       var span = document.createElement('span');
       span.textContent = '\u20bd';
       priceEl.appendChild(span);
+    }
+    var priceSubEl = document.getElementById('resultPriceSub');
+    if (priceSubEl) {
+      priceSubEl.hidden = false;
+      priceSubEl.textContent =
+        '≈ ' +
+        Math.floor(grandTotal / 144).toLocaleString('ru-RU') +
+        ' ₽/мес. на 12 лет \u00a0·\u00a0 Гарантия: 2 года конструкция + 5 лет ткань';
+    }
+    var urgencyEl = document.getElementById('urgencyNote');
+    if (urgencyEl) {
+      urgencyEl.textContent = '\u23F1 ' + getDeliveryNoteText();
     }
     var resultBlock = document.getElementById('resultBlock');
     if (resultBlock) resultBlock.classList.add('visible');
@@ -2505,6 +3087,22 @@
           if (d0.frame_note) parts.push(d0.frame_note);
           mEl.textContent = parts.join(' · ');
         }
+        var scenEl = document.getElementById('decolifeResultScenario');
+        var mc0 = results[0] && results[0].motor_commercial;
+        if (scenEl) {
+          if (state.control === 'electric' && mc0 && mc0.scenario) {
+            if (state.awningType === 'storefront') {
+              var sk = state.motorBrand || 'decolife';
+              scenEl.textContent = STOREFRONT_SCENARIOS[sk] || STOREFRONT_SCENARIOS.decolife;
+            } else {
+              scenEl.textContent = mc0.scenario;
+            }
+            scenEl.hidden = false;
+          } else {
+            scenEl.textContent = '';
+            scenEl.hidden = true;
+          }
+        }
         var descEl = document.getElementById('decolifeResultDesc');
         if (descEl) descEl.textContent = d0.description || '';
         var multiNote = document.getElementById('decolifeResultMulti');
@@ -2518,10 +3116,53 @@
           }
         }
       } else {
-        dlCard.hidden = true;
-        dlCard.style.display = 'none';
-        var imgClear = document.getElementById('decolifeResultImg');
-        if (imgClear) imgClear.onclick = null;
+        var mcFb = results[0] && results[0].motor_commercial;
+        var sfFallback =
+          state.awningType === 'storefront' &&
+          state.control === 'electric' &&
+          mcFb &&
+          mcFb.scenario;
+        if (sfFallback) {
+          dlCard.hidden = false;
+          dlCard.style.display = 'block';
+          var badgeSf = document.getElementById('decolifeResultBadge');
+          if (badgeSf) badgeSf.textContent = 'Витринная маркиза';
+          var titleSf = document.getElementById('decolifeResultTitle');
+          if (titleSf) titleSf.textContent = '';
+          var metaSf = document.getElementById('decolifeResultMeta');
+          if (metaSf) metaSf.textContent = '';
+          var imgSf = document.getElementById('decolifeResultImg');
+          if (imgSf) {
+            imgSf.src = '/static/img/storefront_awning.png';
+            imgSf.alt = 'Витринная маркиза';
+            imgSf.onclick = function () {
+              openSchemeZoom('/static/img/storefront_awning.png', 'Витринная маркиза');
+            };
+          }
+          var scenSf = document.getElementById('decolifeResultScenario');
+          if (scenSf) {
+            var skf = state.motorBrand || 'decolife';
+            scenSf.textContent = STOREFRONT_SCENARIOS[skf] || STOREFRONT_SCENARIOS.decolife;
+            scenSf.hidden = false;
+          }
+          var descSf = document.getElementById('decolifeResultDesc');
+          if (descSf) descSf.textContent = '';
+          var multiSf = document.getElementById('decolifeResultMulti');
+          if (multiSf) {
+            multiSf.textContent = '';
+            multiSf.style.display = 'none';
+          }
+        } else {
+          dlCard.hidden = true;
+          dlCard.style.display = 'none';
+          var imgClear = document.getElementById('decolifeResultImg');
+          if (imgClear) imgClear.onclick = null;
+          var scenClear = document.getElementById('decolifeResultScenario');
+          if (scenClear) {
+            scenClear.textContent = '';
+            scenClear.hidden = true;
+          }
+        }
       }
     }
 
@@ -2598,6 +3239,23 @@
 
     var breakdownBlock = document.getElementById('breakdownBlock');
     if (breakdownBlock) breakdownBlock.classList.add('visible');
+
+    var trustBadgesWrap = document.getElementById('trustBadgesWrap');
+    if (trustBadgesWrap) {
+      trustBadgesWrap.hidden = false;
+      trustBadgesWrap.classList.add('visible');
+    }
+    var trustInstallIco = document.getElementById('trustBadgeInstallIco');
+    var trustInstallTxt = document.getElementById('trustBadgeInstallTxt');
+    if (trustInstallTxt) {
+      if (state.installation === 'with') {
+        if (trustInstallIco) trustInstallIco.textContent = '🔧';
+        trustInstallTxt.innerHTML = 'Монтаж<br>включён';
+      } else {
+        if (trustInstallIco) trustInstallIco.textContent = '📦';
+        trustInstallTxt.innerHTML = 'Без монтажа<br>в этом расчёте';
+      }
+    }
 
     // PDF button — show and store params for download
     var pdfWrap = document.getElementById('pdfBtnWrap');

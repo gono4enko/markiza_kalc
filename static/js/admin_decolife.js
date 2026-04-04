@@ -17,7 +17,9 @@
     projections: [],
     title: "",
     /** Строки выноса без цен (показать пустой ряд до заполнения ячеек) */
-    extraProjections: []
+    extraProjections: [],
+    /** По ширине: кронштейны / локти / поддержки вала (как в низу прайса) */
+    hardware_by_width: {}
   };
 
   function $(id) {
@@ -94,6 +96,52 @@
       }
     }
     recomputeAxes();
+    syncHardwareFromInputs();
+  }
+
+  function syncHardwareFromInputs() {
+    var table = $("decolifeMatrixTable");
+    if (!table) return;
+    var inputs = table.querySelectorAll("input[data-hw][data-w]");
+    state.hardware_by_width = state.hardware_by_width || {};
+    var i;
+    for (i = 0; i < state.widths.length; i++) {
+      var ww = state.widths[i];
+      if (!state.hardware_by_width[ww]) {
+        state.hardware_by_width[ww] = {};
+      }
+    }
+    for (i = 0; i < inputs.length; i++) {
+      var inp = inputs[i];
+      var w = inp.getAttribute("data-w");
+      var role = inp.getAttribute("data-hw");
+      var v = parseInt(String(inp.value).replace(/\s/g, ""), 10);
+      if (!state.hardware_by_width[w]) {
+        state.hardware_by_width[w] = {};
+      }
+      if (isNaN(v) || String(inp.value).trim() === "") {
+        delete state.hardware_by_width[w][role];
+      } else {
+        state.hardware_by_width[w][role] = v;
+      }
+    }
+    var wk = Object.keys(state.hardware_by_width);
+    for (i = 0; i < wk.length; i++) {
+      var kw = wk[i];
+      if (Object.keys(state.hardware_by_width[kw]).length === 0) {
+        delete state.hardware_by_width[kw];
+      }
+    }
+    var validW = {};
+    for (i = 0; i < state.widths.length; i++) {
+      validW[state.widths[i]] = true;
+    }
+    wk = Object.keys(state.hardware_by_width);
+    for (i = 0; i < wk.length; i++) {
+      if (!validW[wk[i]]) {
+        delete state.hardware_by_width[wk[i]];
+      }
+    }
   }
 
   function renderTable() {
@@ -172,6 +220,43 @@
       }
       tbody.appendChild(tr);
     }
+
+    var hwRows = [
+      { key: "brackets", text: "Кол-во кронштейнов крепления" },
+      { key: "elbows", text: "Кол-во локтей" },
+      { key: "shaft_supports", text: "Кол-во поддержек вала" }
+    ];
+    for (var hi = 0; hi < hwRows.length; hi++) {
+      var hk = hwRows[hi].key;
+      var trHw = document.createElement("tr");
+      trHw.className = "decolife-hw-row";
+      var tdHw0 = document.createElement("td");
+      tdHw0.style.fontWeight = "600";
+      tdHw0.style.background = "#eef2f8";
+      tdHw0.textContent = hwRows[hi].text;
+      trHw.appendChild(tdHw0);
+      var hci;
+      for (hci = 0; hci < state.widths.length; hci++) {
+        var wcolH = state.widths[hci];
+        var packH = (state.hardware_by_width && state.hardware_by_width[wcolH]) || {};
+        var tdH = document.createElement("td");
+        tdH.style.background = "#f7f9fc";
+        var inH = document.createElement("input");
+        inH.type = "text";
+        inH.setAttribute("inputmode", "numeric");
+        inH.dataset.hw = hk;
+        inH.dataset.w = wcolH;
+        var nv = packH[hk];
+        inH.value = nv !== undefined && nv !== null && !isNaN(nv) ? String(nv) : "";
+        inH.addEventListener("input", function () {
+          this.classList.add("cell-dirty");
+        });
+        tdH.appendChild(inH);
+        trHw.appendChild(tdH);
+      }
+      tbody.appendChild(trHw);
+    }
+
     table.appendChild(tbody);
   }
 
@@ -305,6 +390,7 @@
         state.widths = j.widths || [];
         state.projections = j.projections || [];
         state.extraProjections = [];
+        state.hardware_by_width = JSON.parse(JSON.stringify(j.hardware_by_width || {}));
         state.title = (j.series || "") + " — " + (j.tier_label || state.tier);
         updateTitle();
         renderTable();
@@ -348,6 +434,33 @@
     }
   }
 
+  function mergeParsedHardware(hw) {
+    if (!hw || typeof hw !== "object") return;
+    state.hardware_by_width = state.hardware_by_width || {};
+    var wk = Object.keys(hw);
+    var i;
+    for (i = 0; i < wk.length; i++) {
+      var wRaw = wk[i];
+      var w = normDim(wRaw);
+      if (!w) continue;
+      var pack = hw[wRaw];
+      if (!pack || typeof pack !== "object") continue;
+      if (!state.hardware_by_width[w]) {
+        state.hardware_by_width[w] = {};
+      }
+      ["brackets", "elbows", "shaft_supports"].forEach(function (key) {
+        if (pack[key] === undefined || pack[key] === null || pack[key] === "") {
+          return;
+        }
+        var n = parseInt(String(pack[key]).replace(/\s/g, ""), 10);
+        if (!isNaN(n)) {
+          state.hardware_by_width[w][key] = n;
+        }
+      });
+    }
+    renderTable();
+  }
+
   function saveMatrix() {
     syncPricesFromInputs();
     if (!state.line || !state.modelId || !state.tier) {
@@ -363,7 +476,8 @@
         line: state.line,
         model_id: state.modelId,
         tier: state.tier,
-        prices: state.prices
+        prices: state.prices,
+        hardware_by_width: state.hardware_by_width || {}
       })
     })
       .then(function (r) {
@@ -421,10 +535,12 @@
         }
         var d = x.j.data || {};
         mergeParsedPrices(d.prices || {});
+        mergeParsedHardware(d.hardware_by_width || {});
         var st = x.j.stats || {};
         setStatus(
           "Распознано ячеек: " + (st.cells != null ? st.cells : "—") +
-            ", правок верификации: " + (st.corrections != null ? st.corrections : 0),
+            ", правок верификации: " + (st.corrections != null ? st.corrections : 0) +
+            ", ширин с комплектацией: " + (st.hardware_widths != null ? st.hardware_widths : "—"),
           true
         );
       })

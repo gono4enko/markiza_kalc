@@ -44,6 +44,54 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
 
 # ---------------------------------------------------------------------------
+# Кэш браузера для статики (важно для мобильных: меньше повторных загрузок)
+# ---------------------------------------------------------------------------
+
+
+@app.after_request
+def _static_cache_headers(response):
+    """Cache-Control для /static/: ткани и шрифты — долго; JS — короче + SWR."""
+    if response.status_code not in (200, 206):
+        return response
+    path = request.path or ""
+    if not path.startswith("/static/"):
+        return response
+    if app.debug or os.environ.get("DISABLE_STATIC_CACHE", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    ):
+        return response
+
+    # JSON в static/data могут меняться из админки — не кэшировать надолго
+    if "/static/data/" in path and path.endswith(".json"):
+        response.headers["Cache-Control"] = "public, max-age=120, must-revalidate"
+        return response
+
+    if "suntex_thumbs" in path or "/img/fabrics/" in path:
+        # Миниатюры и ZIP-ткани: уникальный URL на файл — безопасно immutable
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+    if path.endswith((".woff2", ".woff", ".ttf", ".otf")):
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+    if path.endswith((".js", ".css")):
+        response.headers["Cache-Control"] = (
+            "public, max-age=3600, stale-while-revalidate=86400"
+        )
+        return response
+
+    if "/static/img/" in path:
+        response.headers["Cache-Control"] = "public, max-age=2592000"
+        return response
+
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    return response
+
+
+# ---------------------------------------------------------------------------
 # In-memory кэш расчётов: {md5(params): {result, ts}}
 # ---------------------------------------------------------------------------
 
@@ -567,7 +615,42 @@ def _normalize_ocr(parsed: dict) -> dict:
             except (ValueError, TypeError):
                 prices[w][p] = 0
 
-    return {"widths": widths, "projections": projs, "prices": prices}
+    out: dict[str, Any] = {"widths": widths, "projections": projs, "prices": prices}
+    hw = _normalize_hardware_by_width(parsed.get("hardware_by_width"))
+    if hw:
+        out["hardware_by_width"] = hw
+    return out
+
+
+def _normalize_hardware_by_width(raw: Any) -> dict[str, dict[str, int]]:
+    """Нормализует блок комплектации по ширине (строки низа прайса Decolife)."""
+    out: dict[str, dict[str, int]] = {}
+    if not isinstance(raw, dict):
+        return out
+    for w_raw, pack in raw.items():
+        try:
+            w = _fmt_dim(str(w_raw))
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(pack, dict):
+            continue
+        rec: dict[str, int] = {}
+        for key in ("brackets", "elbows", "shaft_supports"):
+            v = pack.get(key)
+            if v is None or v == "":
+                continue
+            try:
+                rec[key] = int(float(str(v).replace(",", ".").replace(" ", "").replace("\u00a0", "")))
+            except (ValueError, TypeError):
+                continue
+        if rec:
+            out[w] = rec
+    return out
+
+
+def _clean_hardware_by_width(hw_in: Any) -> dict[str, dict[str, int]]:
+    """Для записи в decolife_*.json — та же нормализация, что после OCR."""
+    return _normalize_hardware_by_width(hw_in)
 
 
 def _build_ocr_prompt(tinfo: dict) -> str:
@@ -575,6 +658,24 @@ def _build_ocr_prompt(tinfo: dict) -> str:
     er = tinfo.get("extra_rules")
     if er:
         extra_block = f"\n\nADDITIONAL RULES:\n{er}\n"
+
+    hw_block = ""
+    hw_example = ""
+    if tinfo.get("include_hardware_by_width"):
+        hw_block = """
+7. At the BOTTOM of the same sheet (technical rows under the price grid, aligned with WIDTH columns):
+   - row «Кол-во кронштейнов» → per width: integer → JSON key \"brackets\"
+   - row «Кол-во локтей» → \"elbows\"
+   - row «Кол-во поддержек вала» → \"shaft_supports\"
+   Add top-level \"hardware_by_width\": object mapping each width key (same format as prices, e.g. \"4.0\") to
+   {\"brackets\": int, \"elbows\": int, \"shaft_supports\": int}. Use 0 if the sheet shows 0.
+   Include one entry per width column that exists in \"prices\". If a technical row is missing, omit that field for that width only.
+"""
+        hw_example = """,
+  "hardware_by_width": {
+    "4.0": {"brackets": 4, "elbows": 2, "shaft_supports": 0},
+    "14.0": {"brackets": 12, "elbows": 5, "shaft_supports": 4}
+  }"""
 
     return f"""You are a precise OCR engine for awning price tables.
 
@@ -599,7 +700,7 @@ RULES:
 2. Prices may have spaces as thousands separators: "4 512" = 4512
 3. Format all dimension keys as "X.Y" (one decimal, e.g. "3.0", "1.5")
 4. Return ONLY valid JSON — no markdown, no explanation
-
+{hw_block}
 REQUIRED JSON format:
 {{
   "widths": ["3.0", "3.5", "4.0", ...],
@@ -608,7 +709,7 @@ REQUIRED JSON format:
     "3.0": {{"1.5": 545, "2.0": 595, "2.5": 650, "3.0": 715, "3.5": 790}},
     "3.5": {{"1.5": 585, ...}},
     ...
-  }}
+  }}{hw_example}
 }}"""
 
 
@@ -792,6 +893,7 @@ def _decolife_tinfo_for_ocr(series: str, tier: str, table: dict[str, Any]) -> di
         "expected_rows": ", ".join(proj_list) if proj_list else "определи по изображению",
         "expected_cols": ", ".join(widths) if widths else "определи по изображению",
         "extra_rules": extra + " " + map_note,
+        "include_hardware_by_width": True,
     }
 
 
@@ -920,6 +1022,9 @@ def admin_api_decolife_matrix_get():
         if isinstance(row, dict):
             projs.update(row.keys())
     proj_list = sorted(projs, key=lambda x: float(x))
+    hw = meta.get("hardware_by_width")
+    if not isinstance(hw, dict):
+        hw = {}
     return jsonify({
         "line": line,
         "model_id": model_id,
@@ -930,6 +1035,7 @@ def admin_api_decolife_matrix_get():
         "prices": table,
         "widths": widths,
         "projections": proj_list,
+        "hardware_by_width": hw,
     })
 
 
@@ -941,6 +1047,7 @@ def admin_api_decolife_matrix_save():
     model_id = body.get("model_id", "")
     tier = body.get("tier", "")
     prices_in = body.get("prices", {})
+    hw_in = body.get("hardware_by_width")
     if line not in _DECOLIFE_LINE_FILES:
         return jsonify({"error": "Неизвестная линейка"}), 400
     if not model_id or not tier:
@@ -957,6 +1064,8 @@ def admin_api_decolife_matrix_save():
     tables = meta.setdefault("tables", {})
     cleaned = _clean_decolife_prices_table(prices_in)
     tables[tier] = cleaned
+    if isinstance(hw_in, dict):
+        meta["hardware_by_width"] = _clean_hardware_by_width(hw_in)
     bak = path + ".bak"
     try:
         shutil.copy2(path, bak)
@@ -1011,6 +1120,7 @@ def admin_parse_decolife_price_image():
     try:
         normalized, corrections_applied = _run_claude_price_ocr(api_key, b64, media_type, tinfo)
         total_cells = sum(len(row) for row in normalized["prices"].values())
+        hw = normalized.get("hardware_by_width") or {}
         return jsonify({
             "ok": True,
             "line": line,
@@ -1023,6 +1133,7 @@ def admin_parse_decolife_price_image():
                 "corrections": corrections_applied,
                 "widths": len(normalized["widths"]),
                 "projections": len(normalized["projections"]),
+                "hardware_widths": len(hw) if isinstance(hw, dict) else 0,
             },
         })
     except json.JSONDecodeError as exc:

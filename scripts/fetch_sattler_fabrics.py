@@ -8,6 +8,7 @@
 Запуск из корня awning-calculator:
   python3 scripts/fetch_sattler_fabrics.py
   python3 scripts/fetch_sattler_fabrics.py --write
+  python3 scripts/sync_fabric_std_thumbs.py   # миниатюры в static/img/fabrics/suntex_thumbs/
 """
 from __future__ import annotations
 

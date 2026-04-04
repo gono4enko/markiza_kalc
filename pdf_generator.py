@@ -5,8 +5,10 @@
 
 import io
 import os
+import re
 from datetime import datetime
 from typing import Any
+from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
@@ -15,6 +17,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 from reportlab.platypus import (
     BaseDocTemplate,
@@ -278,20 +281,31 @@ def _section_header(text: str, s: dict) -> Table:
 
 # Ключевые преимущества ткани Sattler SUN-TEX (локтевые / витринные маркизы)
 _SATTLER_ADV_INTRO = (
-    "В расчёте используется маркизное полотно <b>Sattler SUN-TEX</b> (группа Sattler, Европа) — "
-    "специализированные солнцезащитные текстили. Кратко о свойствах:"
+    "Ткань — это то, на что вы смотрите каждый день и что первым принимает удары солнца, "
+    "дождя и ветра. В расчёте используется <b>Sattler SUN-TEX</b> (Австрия, более 100 лет "
+    "на рынке, поставки в 60+ стран мира). Простыми словами — почему это важно:"
 )
 _SATTLER_ADV_BULLETS: tuple[str, ...] = (
-    "100% <b>solution-dyed акрил</b>: цвет в массе волокна, высокая устойчивость к выцветанию и длительной УФ-нагрузке.",
-    "Испытания по <b>UV Standard 801</b> с моделированием эксплуатации; для солнцезащитных текстилей Sattler типичен "
-    "УФ-фактор <b>40–80</b> — существенно выше обычной хлопковой ткани в тени.",
-    "Отделка <b>TEXgard</b> / <b>TEXgard OEKO CLEAN</b>: вода и грязь отталкиваются, поддерживается эффект самоочищения; "
-    "соответствие <b>OEKO-TEX</b>, отделка <b>без PFAS</b>.",
-    "В коллекциях <b>Lumera</b> и <b>Lumera 3D</b> — волокно <b>CBA</b> (Clean Brilliant Acrylic), разработанное для Sattler: "
-    "более гладкая «сияющая» поверхность и насыщенность цвета.",
-    "Линейка <b>Lumera All Weather</b> с покрытием <b>IPC</b>: повышенная защита от влаги при сохранении мягкости полотна.",
-    "Серия <b>Elements Cross Fiber</b>: использование переработанной пряжи из переходных зон окраски — ответственное "
-    "использование сырья при сохранении внешнего вида и качества.",
+    "<b>Цвет не выгорает даже через 7 лет</b> под прямым солнцем. "
+    "Краситель вводится в волокно до прядения (технология solution-dyed акрил) — "
+    "он внутри каждой нити, а не на поверхности. Принципиальное отличие от дешёвых аналогов.",
+
+    "<b>Защищает от ультрафиолета</b> как солнцезащитный крем с SPF 40–80. "
+    "Под тенью маркизы Sattler дети и гости в безопасности даже в полдень "
+    "(испытания по стандарту UV 801).",
+
+    "<b>Грязь и дождь скатываются сами</b> — отделка TEXgard без вредной химии PFAS. "
+    "Уход: промыть тёплой водой раз в сезон. Сертификат OEKO-TEX: "
+    "безопасно для детей и домашних животных.",
+
+    "<b>Коллекция Lumera и Lumera 3D</b> — насыщенные цвета и «сияющая» поверхность "
+    "за счёт особого волокна CBA. Смотрится дороже, выглядит свежо даже после нескольких сезонов.",
+
+    "<b>Lumera All Weather</b> — усиленная защита от намокания при сохранении мягкости. "
+    "Оптимально для регионов с частыми дождями.",
+
+    "<b>Elements Cross Fiber</b> — ткань из переработанного сырья. "
+    "Качество и внешний вид такие же, как у стандартных серий.",
 )
 
 
@@ -409,6 +423,73 @@ def _append_selected_equipment_section(
                     img_w = min(content_w - 8 * mm, 90 * mm)
                     story.append(_image_card(spth, sd["model"], max_w=img_w, s=s, max_h=50 * mm))
 
+    # LED в локтях — локтевая маркиза, опция «С LED подсветкой»
+    lo = str(params.get("lighting_option", "none") or "none")
+    if awning_t == "standard" and lo == "standard":
+        story.append(Spacer(1, 3 * mm))
+        story.append(_section_header(
+            get_pdf_label("section_led", "LED-ПОДСВЕТКА В ЛОКТЯХ (CONCEPT LED)"),
+            s,
+        ))
+        story.append(Spacer(1, 2 * mm))
+        story.append(Paragraph(
+            "<b>Вечерний свет без отдельных светильников:</b> в профиль складных локтей серии "
+            "<b>Concept LED</b> встроена линейная LED-лента. Тёплый рассеянный свет под козырьком "
+            "подчёркивает зону отдыха; днём подсветка визуально не перегружает конструкцию.",
+            s["body"],
+        ))
+        story.append(Spacer(1, 1 * mm))
+        for line in (
+            "LED размещается в <b>канале локтя</b> — без навесных светильников на фасаде.",
+            "Управление согласуется с комплектом автоматики: отдельный канал на пульте или сценарии при настройке (уточняется при монтаже).",
+            "Совместимость с сериями <b>Concept / Concept LED</b> в рамках подобранной под ваш вылет конфигурации Gaviota.",
+        ):
+            story.append(Paragraph(f"• {line}", s["term_bullet"]))
+        p_arm = _static_url_to_fs("/static/img/led_concept_arm_detail.png")
+        p_ter = _static_url_to_fs("/static/img/led_concept_terrace.png")
+        if p_arm and p_ter:
+            gap = 4 * mm
+            col_w = (content_w - gap) / 2
+            (dw_l, dh), (dw_r, _dh_r) = _led_image_pair_equal_height(
+                p_arm, p_ter, col_w, 52 * mm,
+            )
+            c1 = _image_card(
+                p_arm,
+                "Крупно: LED-лента в канале локтя",
+                max_w=col_w,
+                s=s,
+                max_h=52 * mm,
+                fixed_draw_w=dw_l,
+                fixed_draw_h=dh,
+            )
+            c2 = _image_card(
+                p_ter,
+                "Терраса с подсветкой Concept LED",
+                max_w=col_w,
+                s=s,
+                max_h=52 * mm,
+                fixed_draw_w=dw_r,
+                fixed_draw_h=dh,
+            )
+            row_led = Table([[c1, c2]], colWidths=[col_w, col_w])
+            row_led.setStyle(TableStyle([
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ]))
+            story.append(Spacer(1, 2 * mm))
+            story.append(row_led)
+        elif p_arm:
+            story.append(Spacer(1, 2 * mm))
+            img_w = min(content_w - 8 * mm, 95 * mm)
+            story.append(_image_card(p_arm, "LED-лента в локте маркизы", max_w=img_w, s=s, max_h=50 * mm))
+        elif p_ter:
+            story.append(Spacer(1, 2 * mm))
+            img_w = min(content_w - 8 * mm, 95 * mm)
+            story.append(_image_card(p_ter, "Терраса с подсветкой Concept LED", max_w=img_w, s=s, max_h=50 * mm))
+
 
 def _append_elbow_arms_section(story: list, s: dict[str, ParagraphStyle], content_w: float) -> None:
     """Секция про тип локтей, сечение и натяжение — только для локтевой маркизы."""
@@ -418,8 +499,11 @@ def _append_elbow_arms_section(story: list, s: dict[str, ParagraphStyle], conten
 
     ps_body = ParagraphStyle("elbow_body", parent=s["body"], spaceAfter=2 * mm)
     story.append(Paragraph(
-        "Складные плечи (локти) воспринимают нагрузку от ветра и веса полотна. С ростом <b>вылета</b> возрастают требования к "
-        "<b>сечению профиля</b> и <b>системе натяжения</b> — это влияет на провисание ткани и ветроустойчивость.",
+        "<b>Как мы выбираем локти под ваш заказ:</b> складные плечи (локти) — это то, "
+        "что держит полотно в открытом состоянии и противостоит ветру. "
+        "Чем больше вылет, тем мощнее должны быть локти. "
+        "<b>Мы уже выбрали правильную серию под ваши размеры</b> — она указана выше. "
+        "Таблица ниже поясняет разницу между сериями, если интересно:",
         ps_body,
     ))
     story.append(Paragraph(
@@ -479,8 +563,169 @@ def _append_elbow_arms_section(story: list, s: dict[str, ParagraphStyle], conten
     ]))
     story.append(arm_tbl)
     story.append(Paragraph(
+        "* При вылете до 3,0 м серия Smart — оптимальный баланс цены и надёжности. "
+        "При вылете от 3,5 м автоматически переходим на Premium Plus без пересчёта КП.",
+        ParagraphStyle("elbow_tip", parent=s["small"],
+            spaceBefore=2 * mm, spaceAfter=0,
+            textColor=C_MID, fontName="Arial-Italic", fontSize=8.5),
+    ))
+    story.append(Paragraph(
         "* Ориентир по каталогам комплектующих; фактический предел зависит от ширины, крепления и условий эксплуатации.",
         ParagraphStyle("elbow_foot", parent=s["small"], spaceBefore=1.5 * mm, spaceAfter=0),
+    ))
+
+
+def _append_storefront_arms_section(
+    story: list,
+    s: dict[str, ParagraphStyle],
+    params: dict[str, Any],
+    content_w: float,
+) -> None:
+    """Витринная маркиза: выпадающие локти, углы, сравнение G400 / G450."""
+    story.append(Spacer(1, 3 * mm))
+    story.append(_section_header("КАК РАБОТАЮТ ЛОКТИ ВИТРИННОЙ МАРКИЗЫ", s))
+    story.append(Spacer(1, 2 * mm))
+
+    ps_body = ParagraphStyle("sf_body", parent=s["body"], spaceAfter=2 * mm)
+    ps_bold = ParagraphStyle("sf_bold", parent=s["body"],
+        fontName="Arial-Bold", spaceAfter=2 * mm)
+
+    config = str(params.get("config", "") or "").lower()
+    tilt_on = params.get("storefront_tilt_170") in (True, "true", 1, "1", "yes", "on")
+
+    story.append(Paragraph(
+        "В отличие от локтевых маркиз, где плечи раскрываются горизонтально над террасой, "
+        "витринные маркизы используют <b>выпадающие подпружиненные локти</b>: "
+        "они опускаются вниз и натягивают полотно перед окном или витриной.",
+        ps_body,
+    ))
+    story.append(Paragraph(
+        "<b>Почему это важно для магазина или кафе:</b>",
+        ps_bold,
+    ))
+    story.append(Paragraph(
+        "Прямые солнечные лучи создают блики на витринном стекле — "
+        "товары не видны снаружи, покупатели проходят мимо. "
+        "Маркиза блокирует прямое солнце: стекло становится прозрачным, "
+        "товары снова видны, витрина работает на продажи. "
+        "Дополнительно: температура воздуха внутри снижается — "
+        "меньше затраты на кондиционирование.",
+        ps_body,
+    ))
+
+    arm_cell = ParagraphStyle("sf_arm_cell", fontName="Arial",
+        fontSize=8.5, textColor=C_DARK, leading=12)
+    arm_head = ParagraphStyle("sf_arm_head", fontName="Arial-Bold",
+        fontSize=8.5, textColor=C_DARK, leading=12)
+
+    tilt_rows = [
+        [
+            Paragraph("Угол наклона", arm_head),
+            Paragraph("Описание", arm_head),
+            Paragraph("Когда применять", arm_head),
+        ],
+        [
+            Paragraph("90° — стандарт", arm_cell),
+            Paragraph("Козырёк горизонтально над окном", arm_cell),
+            Paragraph("Защита от верхнего солнца, тень на витрине", arm_cell),
+        ],
+        [
+            Paragraph("170° — опция (+15%)", arm_cell),
+            Paragraph("Локти почти вертикально, полотно закрывает окно", arm_cell),
+            Paragraph(
+                "Полная защита в любое время дня. "
+                "Товары, оборудование или интерьер под максимальной защитой.",
+                arm_cell,
+            ),
+        ],
+    ]
+
+    w1, w2, w3 = content_w * 0.22, content_w * 0.38, content_w * 0.40
+    tilt_style = [
+        ("BACKGROUND",    (0, 0), (-1, 0), C_LIGHT),
+        ("GRID",          (0, 0), (-1, -1), 0.5, C_BORDER),
+        ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING",    (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 4),
+    ]
+    if tilt_on:
+        tilt_style.extend([
+            ("BACKGROUND", (0, 2), (-1, 2), colors.HexColor("#fff3ee")),
+            ("LINEABOVE",  (0, 2), (-1, 2), 1.5, C_ACCENT),
+        ])
+    tilt_tbl = Table(tilt_rows, colWidths=[w1, w2, w3])
+    tilt_tbl.setStyle(TableStyle(tilt_style))
+    story.append(tilt_tbl)
+
+    story.append(Spacer(1, 3 * mm))
+    story.append(Paragraph(
+        "<b>Модели в линейке витринных маркиз Gaviota:</b>",
+        ps_bold,
+    ))
+
+    st_name_g400 = ParagraphStyle(
+        "sf_nm_g400",
+        parent=arm_cell,
+        fontName="Arial-Bold" if config == "g400" else "Arial",
+        textColor=C_ACCENT if config == "g400" else C_DARK,
+    )
+    st_name_g450 = ParagraphStyle(
+        "sf_nm_g450",
+        parent=arm_cell,
+        fontName="Arial-Bold" if config == "g450" else "Arial",
+        textColor=C_ACCENT if config == "g450" else C_DARK,
+    )
+    model_rows = [
+        [
+            Paragraph("Модель", arm_head),
+            Paragraph("Конструкция", arm_head),
+            Paragraph("Ширина", arm_head),
+            Paragraph("Макс. вынос", arm_head),
+        ],
+        [
+            Paragraph(
+                "G400 Italy" + (" ← выбрана" if config == "g400" else ""),
+                st_name_g400,
+            ),
+            Paragraph("Открытая, выпадающие локти на пружинах", arm_cell),
+            Paragraph("до 7 м", arm_cell),
+            Paragraph("до 1,4 м", arm_cell),
+        ],
+        [
+            Paragraph(
+                "G450 Desert" + (" ← выбрана" if config == "g450" else ""),
+                st_name_g450,
+            ),
+            Paragraph("Кассетная, полотно убирается в короб", arm_cell),
+            Paragraph("до 5 м", arm_cell),
+            Paragraph("до 1,0 м", arm_cell),
+        ],
+    ]
+
+    wm1, wm2, wm3, wm4 = content_w * 0.22, content_w * 0.40, content_w * 0.19, content_w * 0.19
+    model_style = [
+        ("BACKGROUND",    (0, 0), (-1, 0), C_LIGHT),
+        ("GRID",          (0, 0), (-1, -1), 0.5, C_BORDER),
+        ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING",    (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 4),
+    ]
+    if config == "g400":
+        model_style.append(("BACKGROUND", (0, 1), (-1, 1), colors.HexColor("#fff3ee")))
+    elif config == "g450":
+        model_style.append(("BACKGROUND", (0, 2), (-1, 2), colors.HexColor("#fff3ee")))
+    model_tbl = Table(model_rows, colWidths=[wm1, wm2, wm3, wm4])
+    model_tbl.setStyle(TableStyle(model_style))
+    story.append(model_tbl)
+    story.append(Paragraph(
+        "* Локти Italy (пара) входят в стоимость маркизы. "
+        "При вылете 0,7–1,4 м пружинный механизм обеспечивает равномерное натяжение "
+        "без ручной регулировки после каждого цикла.",
+        ParagraphStyle("sf_foot", parent=s["small"], spaceBefore=1.5 * mm, spaceAfter=0),
     ))
 
 
@@ -527,7 +772,29 @@ def _static_url_to_fs(web_path: str) -> str | None:
     return full if os.path.isfile(full) else None
 
 
-def _get_fabric_image(params: dict[str, Any]) -> str | None:
+def _fabric_article_fs_safe(label: str) -> str:
+    """Имя файла как в scripts/sync_fabric_std_thumbs.py."""
+    s = (label or "").strip()
+    s = re.sub(r"[^\w.\-]+", "_", s)
+    return (s[:180] or "unknown")
+
+
+def _suntex_thumb_local_path(params: dict[str, Any]) -> str | None:
+    """Локальная миниатюра SUN-TEX: static/img/fabrics/suntex_thumbs/{fabric}/{артикул}.webp."""
+    fb = str(params.get("fabric", "") or "").strip()
+    art = (params.get("fabric_color_label") or params.get("fabric_swatch_label") or "").strip()
+    if not fb or not art:
+        return None
+    safe = _fabric_article_fs_safe(art)
+    base = os.path.join(_BASE, "static", "img", "fabrics", "suntex_thumbs", fb)
+    for ext in (".webp", ".jpg", ".jpeg", ".png"):
+        p = os.path.join(base, safe + ext)
+        if os.path.isfile(p):
+            return p
+    return None
+
+
+def _get_fabric_image(params: dict[str, Any]) -> str | io.BytesIO | None:
     """Возвращает абсолютный путь к thumb-изображению ткани или None."""
     fabrics_root = os.path.join(_BASE, "static", "img", "fabrics")
     awning_type  = params.get("awning_type", "")
@@ -565,6 +832,17 @@ def _get_fabric_image(params: dict[str, Any]) -> str | None:
                     return path
             return _first_file(folder)
 
+    # Локтевая / витринная: только файлы приложения (см. scripts/sync_fabric_std_thumbs.py)
+    if awning_type in ("standard", "storefront"):
+        loc_st = _suntex_thumb_local_path(params)
+        if loc_st:
+            return loc_st
+        raw = (params.get("fabric_swatch_url") or "").strip()
+        if raw.startswith("/static/"):
+            loc = _static_url_to_fs(raw)
+            if loc:
+                return loc
+
     return None
 
 
@@ -578,40 +856,100 @@ def _first_file(folder: str) -> str | None:
     return None
 
 
+def _fit_image_draw_size(
+    native_w: int,
+    native_h: int,
+    max_w: float,
+    max_h: float,
+) -> tuple[float, float]:
+    """Вписать пропорции в прямоугольник max_w × max_h, вернуть (draw_w, draw_h)."""
+    ratio = native_w / native_h
+    if ratio >= max_w / max_h:
+        return max_w, max_w / ratio
+    return max_h * ratio, max_h
+
+
+def _led_image_pair_equal_height(
+    path_left: str,
+    path_right: str,
+    col_w: float,
+    max_h: float,
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    """
+    Два кадра в колонках одинаковой номинальной ширины: одинаковая высота рисунка
+    (как более «низкий» из вариантов вписывания в col_w×max_h), ширины могут различаться.
+    """
+    from PIL import Image as PILImage
+
+    with PILImage.open(path_left) as pil:
+        nw_l, nh_l = pil.size
+    with PILImage.open(path_right) as pil:
+        nw_r, nh_r = pil.size
+    r_l = nw_l / nh_l
+    r_r = nw_r / nh_r
+    w_l, h_l = _fit_image_draw_size(nw_l, nh_l, col_w, max_h)
+    w_r, h_r = _fit_image_draw_size(nw_r, nh_r, col_w, max_h)
+    target_h = min(h_l, h_r)
+    d_w_l = target_h * r_l
+    d_w_r = target_h * r_r
+    if d_w_l > col_w or d_w_r > col_w:
+        scale = min(col_w / max(d_w_l, 1e-9), col_w / max(d_w_r, 1e-9), 1.0)
+        target_h *= scale
+        d_w_l = target_h * r_l
+        d_w_r = target_h * r_r
+    return (d_w_l, target_h), (d_w_r, target_h)
+
+
 def _image_card(
-    img_path: str,
+    img_source: str | io.BytesIO,
     caption: str,
     max_w: float,
     s: dict,
     max_h: float | None = None,
+    *,
+    fixed_draw_w: float | None = None,
+    fixed_draw_h: float | None = None,
 ) -> Table:
     """Возвращает ячейку-блок с изображением (пропорции сохранены) и подписью."""
     if max_h is None:
         max_h = max_w
+    caption_xml = escape(caption)
     try:
         # Читаем реальные размеры через Pillow чтобы сохранить пропорции
         from PIL import Image as PILImage
-        with PILImage.open(img_path) as pil:
+
+        if isinstance(img_source, str):
+            pil_open = PILImage.open(img_source)
+        else:
+            img_source.seek(0)
+            pil_open = PILImage.open(img_source)
+        with pil_open as pil:
             native_w, native_h = pil.size
 
-        ratio = native_w / native_h
-        # Вписываем в прямоугольник max_w × max_h
-        if ratio >= max_w / max_h:
-            draw_w = max_w
-            draw_h = max_w / ratio
+        if fixed_draw_w is not None and fixed_draw_h is not None:
+            draw_w, draw_h = fixed_draw_w, fixed_draw_h
         else:
-            draw_h = max_h
-            draw_w = max_h * ratio
+            ratio = native_w / native_h
+            # Вписываем в прямоугольник max_w × max_h
+            if ratio >= max_w / max_h:
+                draw_w = max_w
+                draw_h = max_w / ratio
+            else:
+                draw_h = max_h
+                draw_w = max_h * ratio
 
-        img = Image(img_path, width=draw_w, height=draw_h)
+        if isinstance(img_source, str):
+            img = Image(img_source, width=draw_w, height=draw_h)
+        else:
+            img_source.seek(0)
+            img = Image(ImageReader(img_source), width=draw_w, height=draw_h)
         img.hAlign = "CENTER"
-        card_w = draw_w
     except Exception:
-        return Table([[Paragraph(caption, s["small"])]])
+        return Table([[Paragraph(caption_xml, s["small"])]])
     
     card_w = max_w  # ячейка всегда одной ширины для выравнивания
 
-    caption_p = Paragraph(caption, ParagraphStyle(
+    caption_p = Paragraph(caption_xml, ParagraphStyle(
         "img_cap",
         fontName="Arial",
         fontSize=8.5,
@@ -637,6 +975,334 @@ def _image_card(
         ("BACKGROUND",   (0, 1), (-1, 1),  C_LIGHT),
     ]))
     return tbl
+
+
+def _append_benefits_block(
+    story: list,
+    s: dict,
+    params: dict,
+    content_w: float,
+) -> None:
+    """
+    Блок выгод — отвечает 'что я получаю?' до технической конфигурации.
+    5 коротких пунктов, каждый — конкретная выгода под параметры заказа.
+    """
+    awning_t = params.get("awning_type", "standard")
+    control = str(params.get("control", "electric") or "electric")
+    sensor = str(params.get("sensor_type", "none") or "none")
+    width_val = params.get("width", "")
+    proj_val = params.get("projection", params.get("height", ""))
+    size_str = f"{width_val}×{proj_val} м " if width_val and proj_val else ""
+
+    b_s = ParagraphStyle("bi", fontName="Arial", fontSize=10,
+        textColor=C_DARK, leading=15, leftIndent=4 * mm, spaceAfter=2 * mm)
+
+    if awning_t == "zip":
+        b1 = (
+            f"☀️ <b>Защита от солнца и ветра со всех сторон</b> — "
+            f"ZIP-маркиза {size_str}закрывает проём без зазоров по бокам."
+        )
+    elif awning_t == "storefront":
+        b1 = (
+            f"🏪 <b>Витрина снова работает на продажи</b> — "
+            f"маркиза {size_str}убирает блики с стекла. "
+            "Покупатели видят товары, а не своё отражение."
+        )
+    else:
+        b1 = (
+            f"☀️ <b>Комфорт на террасе в любую жару</b> — "
+            f"маркиза {size_str}даёт тень там, где нужно, и убирается когда не нужна."
+        )
+
+    if control == "electric":
+        b2 = (
+            "🎛️ <b>Открывается и закрывается одной кнопкой</b> — "
+            "электропривод с пультом управления уже включён в комплект."
+        )
+    else:
+        b2 = (
+            "🎛️ <b>Простое ручное управление</b> — "
+            "пружинный механизм открывает и удерживает полотно без инструментов."
+        )
+
+    if sensor in ("radio", "speed"):
+        b3 = (
+            "🌬️ <b>Маркиза сворачивается при ветре автоматически</b> — "
+            "датчик защитит конструкцию, даже когда вас нет дома."
+        )
+    elif awning_t == "storefront":
+        b3 = (
+            "🌡️ <b>Снижает температуру в помещении</b> — "
+            "прямое солнце не попадает внутрь. "
+            "Меньше работает кондиционер, ниже счёт за электричество."
+        )
+    else:
+        b3 = (
+            "🛡️ <b>Испанская механика + австрийская ткань</b> — "
+            "Gaviota с 1973 года, Sattler 100+ лет на рынке."
+        )
+
+    b4 = (
+        "🎨 <b>Ткань не выгорает 7+ лет</b> — австрийский Sattler, "
+        "краситель в волокне, а не на поверхности. Гарантия на ткань 5 лет."
+    )
+    with_install = str(params.get("installation", "none") or "none") == "with"
+    if with_install:
+        b5 = (
+            "🔧 <b>Всё включено и под ключ</b> — "
+            "монтаж, обучение управлению и проверка всех функций вместе с вами."
+        )
+    else:
+        b5 = (
+            "📦 <b>Изготовление по расчёту</b> — "
+            "в КП без монтажа: доставку и выезд бригады при необходимости "
+            "согласуем отдельно с менеджером."
+        )
+
+    story.append(_section_header("ЧТО ВЫ ПОЛУЧАЕТЕ", s))
+    story.append(Spacer(1, 2 * mm))
+    for b in (b1, b2, b3, b4, b5):
+        story.append(Paragraph(b, b_s))
+    story.append(Spacer(1, 3 * mm))
+
+
+def _append_value_justification_section(
+    story: list,
+    s: dict,
+    total: float,
+    content_w: float,
+) -> None:
+    """
+    Обоснование цены — снимает ценовой шок сразу после суммы.
+    Стоимость владения + сравнение с реальными альтернативами.
+    """
+    story.append(_section_header("ПОЧЕМУ ЭТА ЦЕНА — ВЫГОДНОЕ ВЛОЖЕНИЕ", s))
+    story.append(Spacer(1, 2 * mm))
+
+    years = 12
+    per_month = total / (years * 12)
+    per_day = total / (years * 365)
+    pm_txt = f"{int(per_month):,}".replace(",", "\u00a0")
+
+    story.append(Paragraph(
+        f"Маркиза — это не трата, а вложение на <b>{years} лет</b>. "
+        f"В пересчёте это всего <b>{pm_txt} руб./мес.</b> "
+        f"или <b>{int(per_day)} руб./день</b> — дешевле чашки кофе в кафе. "
+        "За эти деньги: комфорт каждый день, защита от зноя и дождя, "
+        "и никакого выгоревшего тента на мусорке через сезон.",
+        ParagraphStyle("vji", parent=s["body"], spaceAfter=3 * mm),
+    ))
+
+    h_s = ParagraphStyle("vh", fontName="Arial-Bold", fontSize=8.5, textColor=C_WHITE, leading=11)
+    h_sr = ParagraphStyle("vhr", fontName="Arial-Bold", fontSize=8.5, textColor=C_WHITE, leading=11, alignment=TA_RIGHT)
+    hl_s = ParagraphStyle("vhl", fontName="Arial-Bold", fontSize=9, textColor=C_ACCENT, leading=12)
+    hl_r = ParagraphStyle("vhlr", fontName="Arial-Bold", fontSize=9, textColor=C_ACCENT, leading=12, alignment=TA_RIGHT)
+    n_s = ParagraphStyle("vn", fontName="Arial", fontSize=9, textColor=C_DARK, leading=12)
+    n_r = ParagraphStyle("vnr", fontName="Arial", fontSize=9, textColor=C_DARK, leading=12, alignment=TA_RIGHT)
+    m_s = ParagraphStyle("vm", fontName="Arial-Italic", fontSize=8.5, textColor=C_MID, leading=12)
+    m_r = ParagraphStyle("vmr", fontName="Arial-Italic", fontSize=8.5, textColor=C_MID, leading=12, alignment=TA_RIGHT)
+
+    total_fmt = f"{int(total):,}".replace(",", "\u00a0") + "\u00a0руб."
+
+    data = [
+        [Paragraph("Вариант", h_s), Paragraph("Стоимость", h_sr),
+         Paragraph("Срок службы", h_sr), Paragraph("Управление", h_sr)],
+        [Paragraph("✅ Ваша маркиза (данное КП)", hl_s), Paragraph(total_fmt, hl_r),
+         Paragraph("10–15 лет", hl_r), Paragraph("Автоматика + пульт", hl_r)],
+        [Paragraph("Китайский аналог (Ozon / Wildberries)", n_s), Paragraph("от 30 000 руб.", n_r),
+         Paragraph("1–3 года", n_r), Paragraph("Ручное (цепочка)", n_r)],
+        [Paragraph("Тент или зонт", m_s), Paragraph("от 3 000 руб.", m_r),
+         Paragraph("1–2 сезона", m_r), Paragraph("Ставить / снимать вручную", m_r)],
+        [Paragraph("Строительный навес", m_s), Paragraph("от 120 000 руб.", m_r),
+         Paragraph("постоянно", m_r), Paragraph("не убирается никогда", m_r)],
+    ]
+
+    cw = content_w
+    tbl = Table(data, colWidths=[cw * 0.36, cw * 0.20, cw * 0.22, cw * 0.22])
+    tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), C_DARK),
+        ("BACKGROUND", (0, 1), (-1, 1), colors.HexColor("#fff3ee")),
+        ("LINEABOVE", (0, 1), (-1, 1), 2, C_ACCENT),
+        ("LINEBELOW", (0, 0), (-1, -1), 0.5, C_BORDER),
+        ("TOPPADDING", (0, 0), (-1, -1), 2.5 * mm),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5 * mm),
+        ("LEFTPADDING", (0, 0), (-1, -1), 3 * mm),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 3 * mm),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        *[("BACKGROUND", (0, i), (-1, i), colors.HexColor("#f9fafc"))
+          for i in range(3, len(data), 2)],
+    ]))
+    story.append(tbl)
+    story.append(Spacer(1, 5 * mm))
+
+
+def _append_faq_section(story: list, s: dict, params: dict, content_w: float) -> None:
+    """Закрытие возражений. Вопросы динамические — зависят от конфигурации заказа."""
+    story.append(_section_header("ОТВЕЧАЕМ НА ЧАСТЫЕ ВОПРОСЫ", s))
+    story.append(Spacer(1, 2 * mm))
+
+    sensor = str(params.get("sensor_type", "none") or "none")
+    awning_t = params.get("awning_type", "standard")
+    control = str(params.get("control", "electric") or "electric")
+    with_install = str(params.get("installation", "none") or "none") == "with"
+
+    q_s = ParagraphStyle("fq", fontName="Arial-Bold", fontSize=9.5,
+        textColor=C_DARK, leading=13, spaceAfter=1 * mm, spaceBefore=3 * mm)
+    a_s = ParagraphStyle("fa", fontName="Arial", fontSize=9,
+        textColor=C_DARK, leading=13, spaceAfter=1 * mm, leftIndent=4 * mm)
+
+    faqs: list[tuple[str, str]] = []
+
+    if awning_t == "storefront":
+        faqs.append((
+            "❓ Действительно ли маркиза убирает блики с витрины?",
+            "Да. Блики появляются когда прямые солнечные лучи падают на стекло под острым углом. "
+            "Маркиза создаёт тень перед окном — солнце больше не попадает прямо на стекло. "
+            "Витрина становится прозрачной: покупатели видят товары, а не своё отражение. "
+            "Особенно заметный эффект в утренние и вечерние часы, когда солнце низко.",
+        ))
+        faqs.append((
+            "❓ Что даёт угол наклона 170° и стоит ли за него доплачивать?",
+            "Стандартный угол 90° — козырёк горизонтально. Защищает от верхнего солнца. "
+            "Угол 170° — локти опускаются почти вертикально, полотно закрывает окно как штора. "
+            "Это актуально когда солнце низко (утро, вечер, зима) и бьёт прямо в стекло. "
+            "Для магазинов с дорогими товарами, фотостудий, офисов — обычно стоит доплатить.",
+        ))
+        faqs.append((
+            "❓ Можно ли нанести логотип на полотно маркизы?",
+            "Да, это отдельная опция. Полноцветная латексная печать на акриловой ткани — "
+            "принтер HP на водной основе, стойкость к внешним воздействиям. "
+            "Маркиза с логотипом становится рекламным инструментом: "
+            "её видно издалека, она работает на узнаваемость бренда. "
+            "Стоимость и сроки уточните у менеджера.",
+        ))
+
+    if sensor in ("radio", "speed"):
+        faqs.append((
+            "❓ Датчик сработает при ветре, даже если меня нет дома?",
+            "Да. Датчик крепится на конструкцию и отслеживает колебания полотна "
+            "в нескольких направлениях (3D) — это не просто датчик скорости ветра, "
+            "он чувствует саму вибрацию конструкции. Команда на сворачивание уходит "
+            "по радиоканалу до того, как нагрузка достигнет опасного уровня. "
+            "Всё автоматически, без интернета и вашего участия.",
+        ))
+    else:
+        faqs.append((
+            "❓ Что будет с маркизой при сильном ветре?",
+            "При раскрытом полотне сильный порыв может повредить локти или разорвать ткань. "
+            "Рекомендуем сворачивать при уходе из дома. "
+            "Для полной автоматической защиты добавьте радиодатчик ветра — "
+            "он стоит значительно меньше ремонта. Уточните у менеджера.",
+        ))
+
+    faqs.append((
+        "❓ Ткань выгорит или потеряет цвет за пару лет?",
+        "Нет, если это Sattler SUN-TEX. Краситель вводится в волокно ДО прядения — "
+        "он внутри каждой нити, не на поверхности. Такой цвет не смывается и не выгорает. "
+        "Гарантия на ткань — 5 лет. Австрийцы дают такой срок, "
+        "потому что уверены в материале.",
+    ))
+
+    if control == "electric":
+        if with_install:
+            faqs.append((
+                "❓ Сложно управлять? Нужно каждый раз что-то настраивать?",
+                "Нет. Одна кнопка на пульте — открыто. Ещё раз — закрыто. "
+                "Концевики в механизме сами останавливают полотно в нужных положениях. "
+                "При установке настраиваем всё один раз и обучаем управлению — это 5 минут.",
+            ))
+        else:
+            faqs.append((
+                "❓ Сложно управлять? Нужно каждый раз что-то настраивать?",
+                "Нет. Одна кнопка на пульте — открыто. Ещё раз — закрыто. "
+                "Концевики в механизме сами останавливают полотно в нужных положениях. "
+                "При заказе монтажа бригада настроит привод и обучит за несколько минут; "
+                "без монтажа — по инструкции в комплекте.",
+            ))
+
+    if with_install:
+        faqs.append((
+            "❓ Монтаж — это дополнительные расходы или уже в цене?",
+            "Монтаж включён — видите строку в детализации выше. "
+            "Наши мастера занимаются только маркизами, не сантехники по совместительству. "
+            "После установки: проверяем функции вместе с вами, обучаем, убираем за собой.",
+        ))
+    else:
+        faqs.append((
+            "❓ Монтаж в этот расчёт не входит — как быть?",
+            "В детализации — изготовление (и доставка, если указана), без выезда монтажной бригады. "
+            "Монтаж, замер на объекте и обучение управлению можно добавить — "
+            "стоимость и сроки уточните у менеджера.",
+        ))
+
+    faqs.append((
+        "❓ 80% предоплата — это нормально? Не рискованно?",
+        "Нормально для штучного производства под заказ. "
+        "Работаем официально: договор с реквизитами, кассовый чек, гарантийный талон. "
+        "Вы защищены юридически с первого рубля.",
+    ))
+
+    if awning_t == "standard":
+        faqs.append((
+            "❓ Когда придётся менять маркизу и во сколько это обойдётся?",
+            "Каркас Gaviota рассчитан на 10–15 лет. "
+            "Ткань Sattler — 7–10 лет при уходе раз в сезон (промыть водой). "
+            "Если ткань потеряет вид — меняют без замены каркаса. "
+            "Это значительно дешевле, чем новая маркиза.",
+        ))
+
+    for question, answer in faqs:
+        story.append(Paragraph(question, q_s))
+        story.append(Paragraph(answer, a_s))
+
+    story.append(Spacer(1, 4 * mm))
+
+
+def _append_guarantees_block(story: list, s: dict, params: dict, content_w: float) -> None:
+    """Блок доверия перед контактами. Social proof через цифры."""
+    story.append(_section_header("НАШИ ГАРАНТИИ И ВАША ЗАЩИТА", s))
+    story.append(Spacer(1, 2 * mm))
+
+    with_install = str(params.get("installation", "none") or "none") == "with"
+    guarantees: list[tuple[str, str]] = [
+        ("✅ Официальный договор",
+         "Все условия, сроки и цена — в документе. Вы защищены с первого рубля предоплаты."),
+        ("✅ Гарантия 2 + 5 лет",
+         "2 года на каркас, электрику и автоматику. "
+         "5 лет на ткань Sattler — такой срок даёт только уверенный производитель."),
+        ("✅ Gaviota, Испания — с 1973 года",
+         "Более 50 лет производства маркиз, поставки в 40+ стран. Не новичок на рынке."),
+        ("✅ Sattler, Австрия — более 100 лет",
+         "Сертификат OEKO-TEX (безопасно для детей), поставки в 60+ стран мира."),
+    ]
+    if with_install:
+        guarantees.append((
+            "✅ Монтаж только нашей бригадой",
+            "Специализация — только маркизы. "
+            "Обучение и проверка всех функций после установки включены.",
+        ))
+    guarantees.append((
+        "✅ Бесплатный замер",
+        "Выедем на объект, измерим, покажем образцы тканей — бесплатно и без обязательств.",
+    ))
+
+    g_l = ParagraphStyle("gl", fontName="Arial-Bold", fontSize=9, textColor=C_DARK, leading=13)
+    g_v = ParagraphStyle("gv", fontName="Arial", fontSize=9, textColor=C_DARK, leading=13)
+
+    g_data = [[Paragraph(l, g_l), Paragraph(v, g_v)] for l, v in guarantees]
+    g_tbl = Table(g_data, colWidths=[content_w * 0.38, content_w * 0.62])
+    g_tbl.setStyle(TableStyle([
+        ("TOPPADDING", (0, 0), (-1, -1), 2 * mm),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2 * mm),
+        ("LEFTPADDING", (0, 0), (-1, -1), 2 * mm),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LINEBELOW", (0, 0), (-1, -2), 0.5, C_BORDER),
+        *[("BACKGROUND", (0, i), (-1, i), colors.HexColor("#f9fafc"))
+          for i in range(1, len(g_data), 2)],
+    ]))
+    story.append(g_tbl)
+    story.append(Spacer(1, 5 * mm))
 
 
 # ---------------------------------------------------------------------------
@@ -671,22 +1337,58 @@ def generate_pdf(result: dict[str, Any], params: dict[str, Any] | None = None) -
     # ══════════════════════════════════════════════════════════════════════
     story.append(Paragraph("КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ", s["h1"]))
 
-    rows_data  = result.get("rows", [])
-    total      = result.get("total", 0)
+    rows_data = result.get("rows", [])
+    total = result.get("total", 0)
 
-    # Определяем заголовок изделия из первой строки rows
     product_title = rows_data[0][0] if rows_data else "Маркиза"
+
+    awning_t_label = {
+        "standard": "локтевой маркизы",
+        "storefront": "витринной маркизы",
+        "zip": "ZIP-маркизы",
+    }.get(params.get("awning_type", "standard"), "маркизы")
+
+    width_val = params.get("width", "")
+    proj_val = params.get("projection", params.get("height", ""))
+    size_str = f"{width_val}×{proj_val} м " if width_val and proj_val else ""
+    control_kw = (
+        "с автоматическим управлением"
+        if params.get("control") == "electric"
+        else "с ручным управлением"
+    )
+    sensor_kw = (
+        ", датчик ветра — маркиза убирается сама"
+        if str(params.get("sensor_type", "none")) in ("radio", "speed")
+        else ""
+    )
+
+    hook_style = ParagraphStyle("hook", fontName="Arial-Italic", fontSize=10.5,
+        textColor=C_ACCENT, leading=15, spaceAfter=4 * mm)
+    if params.get("awning_type") == "storefront":
+        hook_text = (
+            f"Витрина {size_str}без бликов, товар виден покупателям — "
+            f"расчёт витринной маркизы {control_kw}."
+        )
+    else:
+        hook_text = (
+            f"Ваша терраса {size_str}под защитой от зноя и непогоды — "
+            f"расчёт {awning_t_label} {control_kw}{sensor_kw}."
+        )
+    story.append(Paragraph(hook_text, hook_style))
+
     story.append(Paragraph(product_title, ParagraphStyle(
         "pt", fontName="Arial", fontSize=11, textColor=C_MID, spaceAfter=4 * mm)))
+
+    _append_benefits_block(story, s, params, content_w)
 
     # Горизонтальный разделитель
     story.append(Table([[""]], colWidths=[content_w],
                        style=TableStyle([("LINEBELOW", (0, 0), (-1, -1), 1, C_BORDER),
-                                         ("TOPPADDING", (0,0),(-1,-1), 0),
-                                         ("BOTTOMPADDING",(0,0),(-1,-1), 2*mm)])))
+                                         ("TOPPADDING", (0, 0), (-1, -1), 0),
+                                         ("BOTTOMPADDING", (0, 0), (-1, -1), 2 * mm)])))
 
     # ══════════════════════════════════════════════════════════════════════
-    # СЕКЦИЯ 2 — КОНФИГУРАЦИЯ ИЗДЕЛИЯ + визуальные изображения
+    # СЕКЦИЯ 2 — КОНФИГУРАЦИЯ ИЗДЕЛИЯ
     # ══════════════════════════════════════════════════════════════════════
     story.append(Spacer(1, 3 * mm))
     story.append(_section_header("КОНФИГУРАЦИЯ ИЗДЕЛИЯ", s))
@@ -702,6 +1404,8 @@ def generate_pdf(result: dict[str, Any], params: dict[str, Any] | None = None) -
 
     if awning_t == "standard":
         _append_elbow_arms_section(story, s, content_w)
+    elif awning_t == "storefront":
+        _append_storefront_arms_section(story, s, params, content_w)
 
     story.append(Spacer(1, 4 * mm))
 
@@ -790,18 +1494,31 @@ def generate_pdf(result: dict[str, Any], params: dict[str, Any] | None = None) -
     story.append(KeepTogether([total_tbl]))
     story.append(Spacer(1, 5 * mm))
 
+    _append_value_justification_section(story, s, total, content_w)
+
     # ══════════════════════════════════════════════════════════════════════
-    # СЕКЦИЯ 4 — УСЛОВИЯ И ГАРАНТИИ
+    # СЕКЦИЯ 4 — УСЛОВИЯ ПРЕДЛОЖЕНИЯ
     # ══════════════════════════════════════════════════════════════════════
     story.append(_section_header("УСЛОВИЯ ПРЕДЛОЖЕНИЯ", s))
     story.append(Spacer(1, 2 * mm))
 
     terms = [
         ("📅", "Действительность КП:", "10 дней с даты выставления"),
-        ("🏭", "Срок изготовления:",    "3 недели после оплаты"),
-        ("✅", "Гарантия:",             "2 года на конструкцию, 5 лет на ткань"),
-        ("💳", "Условия оплаты:",       "80% предоплата, 20% перед отгрузкой"),
+        ("🏭", "Срок изготовления:", "3 недели после оплаты (май–июль: до 5–6 недель)"),
+        ("✅", "Гарантия:", "2 года на конструкцию и электрику, 5 лет на ткань Sattler"),
+        ("💳", "Условия оплаты:", "80% при подтверждении заказа, 20% перед отгрузкой"),
     ]
+    if str(params.get("installation", "none") or "none") == "with":
+        terms.append((
+            "🔧",
+            "После монтажа:",
+            "Обучение управлению + проверка всех функций включена",
+        ))
+    terms.append((
+        "📐",
+        "Замер:",
+        "Бесплатный выезд для уточнения параметров перед договором",
+    ))
 
     terms_data = []
     for _ico, lbl, val in terms:
@@ -828,6 +1545,8 @@ def generate_pdf(result: dict[str, Any], params: dict[str, Any] | None = None) -
     story.append(terms_tbl)
     story.append(Spacer(1, 5 * mm))
 
+    _append_faq_section(story, s, params, content_w)
+
     # ══════════════════════════════════════════════════════════════════════
     # СЕКЦИЯ 5 — ИЗОБРАЖЕНИЯ (схема короба + образец ткани)
     # ══════════════════════════════════════════════════════════════════════
@@ -841,15 +1560,16 @@ def generate_pdf(result: dict[str, Any], params: dict[str, Any] | None = None) -
     elif params.get("awning_type") == "standard":
         scheme_caption = "Тип конструкции"
 
-    fabric_path = _get_fabric_image(params)
+    fabric_img = _get_fabric_image(params)
+    fabric_caption = _fabric_sample_caption_for_pdf(params)
 
-    if scheme_path or fabric_path:
+    if scheme_path or fabric_img:
         story.append(_section_header("ЭСКИЗ И ОБРАЗЕЦ ТКАНИ", s))
         story.append(Spacer(1, 3 * mm))
 
         gap = 5 * mm
         img_cells: list = []
-        if scheme_path and fabric_path:
+        if scheme_path and fabric_img:
             # Эскиз — большая колонка и высота, чтобы читались детали на рендере серии
             scheme_col_w = (content_w - gap) * 0.66
             fabric_col_w = content_w - gap - scheme_col_w
@@ -868,8 +1588,8 @@ def generate_pdf(result: dict[str, Any], params: dict[str, Any] | None = None) -
             )
             img_cells.append(
                 _image_card(
-                    fabric_path,
-                    "Образец ткани",
+                    fabric_img,
+                    fabric_caption,
                     max_w=fabric_max_w,
                     s=s,
                     max_h=fabric_max_h,
@@ -897,11 +1617,11 @@ def generate_pdf(result: dict[str, Any], params: dict[str, Any] | None = None) -
                     max_h=182 * mm,
                 )
             )
-        elif fabric_path:
+        elif fabric_img:
             story.append(
                 _image_card(
-                    fabric_path,
-                    "Образец ткани",
+                    fabric_img,
+                    fabric_caption,
                     max_w=content_w - 4 * mm,
                     s=s,
                     max_h=140 * mm,
@@ -912,6 +1632,11 @@ def generate_pdf(result: dict[str, Any], params: dict[str, Any] | None = None) -
 
     _append_selected_equipment_section(story, s, params, content_w)
 
+    # Воздух перед блоком гарантий (после текста/картинок автоматики и LED)
+    story.append(Spacer(1, 9 * mm))
+
+    _append_guarantees_block(story, s, params, content_w)
+
     # ══════════════════════════════════════════════════════════════════════
     # СЕКЦИЯ 6 — КОНТАКТЫ
     # ══════════════════════════════════════════════════════════════════════
@@ -919,20 +1644,45 @@ def generate_pdf(result: dict[str, Any], params: dict[str, Any] | None = None) -
     story.append(Spacer(1, 2 * mm))
 
     contacts = [
-        ("Сайт",    COMPANY_SITE),
-        ("E-mail",  COMPANY_EMAIL),
+        ("Сайт", COMPANY_SITE),
+        ("E-mail", COMPANY_EMAIL),
         ("Телефон", COMPANY_PHONE),
     ]
     story.append(_kv_table(contacts, s))
-    story.append(Spacer(1, 4 * mm))
+
+    story.append(Spacer(1, 3 * mm))
+    story.append(Table([[""]], colWidths=[content_w], style=TableStyle([
+        ("LINEABOVE", (0, 0), (-1, -1), 1, C_BORDER),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ])))
+    story.append(Spacer(1, 3 * mm))
+    story.append(Paragraph(
+        "⚡ Следующий шаг: позвоните или напишите — "
+        "приедем на бесплатный замер и привезём образцы тканей вживую.",
+        ParagraphStyle("cta", fontName="Arial-Bold", fontSize=10,
+            textColor=C_ACCENT, leading=14, spaceAfter=2 * mm),
+    ))
+    story.append(Paragraph(
+        "КП действительно 10 дней. Каждую неделю сезона (апрель–май) "
+        "сроки изготовления увеличиваются на 3–5 дней. Сейчас — 3 недели.",
+        ParagraphStyle("cta_sub", fontName="Arial-Italic", fontSize=8.5,
+            textColor=C_MID, leading=12, spaceAfter=0),
+    ))
 
     story.append(Paragraph(
         get_pdf_label(
             "disclaimer",
-            "Расчёт является предварительным коммерческим предложением. "
-            "Итоговая стоимость определяется после замера и согласования проекта с менеджером.",
+            "Расчёт предварительный. Цена фиксируется в договоре после замера — "
+            "никаких скрытых доплат после подписания.",
         ),
         s["note"],
+    ))
+    story.append(Spacer(1, 2 * mm))
+    story.append(Paragraph(
+        f"{COMPANY_PHONE}  ·  {COMPANY_EMAIL}  ·  {COMPANY_SITE}",
+        ParagraphStyle("final_cta", fontName="Arial-Bold", fontSize=9,
+            textColor=C_ACCENT, alignment=TA_CENTER, leading=13),
     ))
 
     doc.build(story)
@@ -945,18 +1695,18 @@ def generate_pdf(result: dict[str, Any], params: dict[str, Any] | None = None) -
 # ---------------------------------------------------------------------------
 
 _AWNING_TYPE_LABELS = {
-    "standard":   "Локтевая маркиза",
-    "storefront": "Витринная маркиза",
-    "zip":        "ZIP-маркиза (рулонная)",
+    "standard":   "Локтевая маркиза (складывается полностью)",
+    "storefront": "Витринная маркиза (для фасадов и витрин)",
+    "zip":        "ZIP-маркиза (боковые направляющие, защита от ветра)",
 }
 _CONFIG_LABELS = {
-    "open":     "Открытая",
-    "semi":     "Полукассетная",
-    "cassette": "Кассетная",
-    "g400":     "G400 Italy открытая (Gaviota)",
-    "g450":     "G450 Desert кассетная (Gaviota)",
-    "zip100":   "ZIP 100",
-    "zip130":   "ZIP 130",
+    "open":     "Открытая (механизм и вал открыты, экономичный вариант)",
+    "semi":     "Полукассетная (механизм частично защищён коробом)",
+    "cassette": "Кассетная (полотно и механизм убираются в короб полностью)",
+    "g400":     "G400 Italy — открытая витринная (Gaviota)",
+    "g450":     "G450 Desert — кассетная витринная (Gaviota)",
+    "zip100":   "ZIP 100 (ширина до 4 м)",
+    "zip130":   "ZIP 130 (усиленная, ширина до 6 м)",
 }
 _FABRIC_LABELS = {
     "gaviota":  "Sattler Gaviota (базовая)",
@@ -983,8 +1733,8 @@ _ZIP_FABRIC_MFG: dict[str, str] = {
     "copaco": "Copaco Screenweavers",
 }
 _CONTROL_LABELS = {
-    "manual":   "Ручное",
-    "electric": "Электропривод",
+    "manual":   "Ручное (пружинный механизм, цепочка)",
+    "electric": "Электропривод (управление с пульта)",
 }
 _MOTOR_LABELS = {
     "somfy":    "Somfy",
@@ -1013,6 +1763,42 @@ _COLOR_LABELS_ZIP = {
     "ral8028": "RAL 8028 Муар коричневый",
     "custom":  "Специальный RAL (+10%)",
 }
+
+
+def _fabric_sample_caption_for_pdf(params: dict[str, Any]) -> str:
+    """Подпись под миниатюрой ткани в блоке «Эскиз и образец ткани»."""
+    awning_type = params.get("awning_type", "")
+    if awning_type == "zip":
+        fz = params.get("fabric_zip", "")
+        if not fz:
+            return "Образец ткани"
+        fabric_name = _FABRIC_LABELS.get(fz, fz)
+        mfg_z = _ZIP_FABRIC_MFG.get(fz)
+        if mfg_z:
+            fabric_name = f"{mfg_z} · {fabric_name}"
+        color_art = (
+            params.get("veozip_color")
+            or params.get("soltis_color")
+            or params.get("copaco_color")
+            or ""
+        )
+        col_name = params.get("soltis_collection") or params.get("copaco_collection") or ""
+        parts: list[str] = [fabric_name]
+        if col_name:
+            parts.append(str(col_name))
+        if color_art:
+            parts.append(f"арт. {color_art}")
+        return " · ".join(parts)
+
+    fb = params.get("fabric", "")
+    swatch_lbl = (params.get("fabric_color_label") or params.get("fabric_swatch_label") or "").strip()
+    series = _STD_FABRIC_SUNTEX_SERIES.get(fb, _FABRIC_LABELS.get(fb, fb))
+    parts2: list[str] = [_STD_FABRIC_MFG, f"«{series}»"]
+    if swatch_lbl:
+        parts2.append(f"арт. {swatch_lbl}")
+    if fb or swatch_lbl:
+        return " · ".join(parts2)
+    return "Образец ткани"
 
 
 def _build_config_pairs(
@@ -1048,15 +1834,19 @@ def _build_config_pairs(
     if int(qty) > 1:
         pairs.append(("Количество", str(qty)))
 
-    st_tilt = params.get("storefront_tilt_170")
-    if awning_type == "storefront" and st_tilt in (True, "true", 1, "1", "yes", "on"):
-        pairs.append(("Угол наклона", "до 170° (+15% к базе)"))
+    if awning_type == "storefront":
+        st_tilt = params.get("storefront_tilt_170")
+        tilt_on = st_tilt in (True, "true", 1, "1", "yes", "on")
+        pairs.append((
+            "Угол наклона",
+            "170° (локти вертикально, +15%)" if tilt_on else "90° стандартный",
+        ))
 
     st_val = str(params.get("storefront_valance", "none") or "none").strip().lower()
     if awning_type == "storefront" and st_val == "straight":
-        pairs.append(("Волан", "прямой, 10 €/п.м ширины"))
+        pairs.append(("Волан", "Прямой 150 мм"))
     elif awning_type == "storefront" and st_val == "shaped":
-        pairs.append(("Волан", "фигурный, 15 €/п.м ширины"))
+        pairs.append(("Волан", "Фигурный 150 мм"))
 
     # Ткань
     if awning_type == "zip":
@@ -1087,18 +1877,45 @@ def _build_config_pairs(
         if fb or swatch_lbl:
             pairs.append(("Ткань", " · ".join(parts)))
 
-    # Цвет каркаса
+    # Цвет каркаса (спец. RAL — номер из каталога в заявке)
+    def _frame_color_label_zip(fc: str) -> str:
+        if fc == "custom":
+            ral = str(params.get("frame_custom_ral") or "").strip()
+            rnm = str(params.get("frame_custom_ral_name") or "").strip()
+            if ral:
+                tail = f" ({rnm})" if rnm else ""
+                return f"RAL {ral}{tail} — специальный цвет (+10%)"
+        return _COLOR_LABELS_ZIP.get(fc, fc)
+
+    def _frame_color_label_std(fc: str) -> str:
+        if fc == "custom":
+            ral = str(params.get("frame_custom_ral") or "").strip()
+            rnm = str(params.get("frame_custom_ral_name") or "").strip()
+            if ral:
+                tail = f" ({rnm})" if rnm else ""
+                return f"RAL {ral}{tail} — специальный цвет (+12%)"
+        if awning_type == "storefront":
+            return _COLOR_LABELS_STOREFRONT.get(fc, fc)
+        return _COLOR_LABELS_STD.get(fc, fc)
+
     if awning_type == "zip":
         fc = params.get("frame_color_zip", "")
         if fc:
-            pairs.append(("Цвет каркаса", _COLOR_LABELS_ZIP.get(fc, fc)))
+            pairs.append(("Цвет каркаса", _frame_color_label_zip(fc)))
     else:
         fc = params.get("frame_color", "")
         if fc:
-            if awning_type == "storefront":
-                pairs.append(("Цвет каркаса", _COLOR_LABELS_STOREFRONT.get(fc, fc)))
-            else:
-                pairs.append(("Цвет каркаса", _COLOR_LABELS_STD.get(fc, fc)))
+            pairs.append(("Цвет каркаса", _frame_color_label_std(fc)))
+
+    # Комплектация по прайсу Gaviota/Decolife (строки «Кол-во кронштейнов», «Поддержек вала»)
+    dl = (result or {}).get("decolife") or {}
+    if awning_type == "standard" and dl:
+        bc = dl.get("bracket_count")
+        ssc = dl.get("shaft_support_count")
+        if bc is not None:
+            pairs.append(("Кронштейны крепления", f"{int(float(bc))} шт."))
+        if ssc is not None:
+            pairs.append(("Поддержки вала", f"{int(float(ssc))} шт."))
 
     # Управление
     ctrl = params.get("control", "")

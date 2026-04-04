@@ -8,6 +8,7 @@
 Запуск из корня awning-calculator:
   python3 scripts/fetch_gaviota_fabrics.py
   python3 scripts/fetch_gaviota_fabrics.py --write  # перезаписать gaviota в fabric_std_data.js
+  python3 scripts/sync_fabric_std_thumbs.py        # скачать миниатюры в static/ и пути /static/...
 """
 from __future__ import annotations
 

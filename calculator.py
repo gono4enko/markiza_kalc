@@ -7,9 +7,10 @@
 """
 
 import copy
-import math
 import json
+import math
 import os
+import re
 from typing import Any, Callable
 
 from motor_commercial import (
@@ -248,6 +249,26 @@ def _parse_nonneg_int(val: Any, default: int) -> int:
         return n if n >= 0 else default
     except (TypeError, ValueError):
         return default
+
+
+def _remote_customer_caption(remote_lbl: str) -> str:
+    """
+    Подпись пульта для клиента: без дубля «Пульт» в названии из прайса
+    и без технического блока про число радиоканалов (оно только для расчёта).
+    Пример: «Пульт Gaviota до 5 каналов» → «Gaviota 5 каналов».
+    """
+    s = (remote_lbl or "").strip()
+    if not s:
+        return ""
+    low = s.lower()
+    if low == "пульт управления":
+        return ""
+    # Не срезать «Пульт » у «Пульт управления — …», иначе останется «управления — …»
+    if low.startswith("пульт ") and not low.startswith("пульт управления"):
+        s = s[6:].strip()
+    s = re.sub(r"(?i)\bдо\s*(\d+)\s*каналов\b", r"\1 каналов", s)
+    s = re.sub(r"(?i)\bдо\s*(\d+)\s*канала\b", r"\1 канала", s)
+    return s
 
 
 def _remote_billing_params(params: dict[str, Any]) -> tuple[bool, int]:
@@ -508,6 +529,39 @@ def _decolife_width_row(table: dict[str, Any], sw: float) -> dict[str, Any] | No
     return table.get(s2)  # type: ignore[return-value]
 
 
+def _decolife_hardware_for_std_width(meta: dict[str, Any], std_width_m: float) -> dict[str, int | None]:
+    """Комплектация из hardware_by_width JSON для выбранной стандартной ширины (колонка прайса)."""
+    hm = meta.get("hardware_by_width")
+    if not isinstance(hm, dict) or not hm:
+        return {"bracket_count": None, "elbow_count": None, "shaft_support_count": None}
+    wk = f"{float(std_width_m):.1f}"
+    pack = hm.get(wk)
+    if pack is None:
+        for k, v in hm.items():
+            try:
+                if abs(float(k) - float(std_width_m)) < 1e-6:
+                    pack = v
+                    break
+            except (ValueError, TypeError):
+                continue
+    if not isinstance(pack, dict):
+        return {"bracket_count": None, "elbow_count": None, "shaft_support_count": None}
+
+    def _ig(x: Any) -> int | None:
+        if x is None or x == "":
+            return None
+        try:
+            return int(float(x))
+        except (ValueError, TypeError):
+            return None
+
+    return {
+        "bracket_count": _ig(pack.get("brackets")),
+        "elbow_count": _ig(pack.get("elbows")),
+        "shaft_support_count": _ig(pack.get("shaft_supports")),
+    }
+
+
 # От ширины стандарта (м): правило «вылет не больше ширина − 0,5» (избегаем скрещённых локтей).
 _DECOLIFE_NO_CROSS_MIN_WIDTH_M = 4.0
 _DECOLIFE_NO_CROSS_MARGIN_M = 0.5
@@ -618,6 +672,7 @@ def pick_decolife_cheapest(
     candidates.sort(key=lambda x: (x[0], x[1]))
     price, _ord, mid, sw, sp, meta, tier_used = candidates[0]
     crossed = _decolife_pair_in_crossed_arms(sw, sp, meta)
+    hw = _decolife_hardware_for_std_width(meta, sw)
     return {
         "model_id": mid,
         "series": meta.get("series", mid),
@@ -633,6 +688,9 @@ def pick_decolife_cheapest(
         "crossed_arms": crossed,
         "pricelist_image": meta.get("pricelist_image", ""),
         "product_line": product_line,
+        "bracket_count": hw["bracket_count"],
+        "elbow_count": hw["elbow_count"],
+        "shaft_support_count": hw["shaft_support_count"],
     }
 
 
@@ -1071,15 +1129,16 @@ def calculate(params: dict[str, Any]) -> dict[str, Any]:
                 rows.append(
                     [f"Трубчатый электропривод {_MOTOR_NAMES[brand]}", motor_b * euro_rate],
                 )
+                cap_txt = _remote_customer_caption(remote_lbl)
                 if remote_eur > 0:
-                    rows.append(
-                        [
-                            f"Пульт управления — {remote_lbl} (нужно {ch_need} радиоканал., до {r_cap})",
-                            remote_eur * euro_rate,
-                        ]
+                    row_title = (
+                        f"Пульт управления — {cap_txt}"
+                        if cap_txt
+                        else "Пульт управления"
                     )
+                    rows.append([row_title, remote_eur * euro_rate])
                 remote_meta = {
-                    "label": remote_lbl,
+                    "label": cap_txt if remote_eur > 0 else "",
                     "variant": rv,
                     "eur": remote_eur,
                     "channels_needed": ch_need,
@@ -1190,15 +1249,16 @@ def calculate(params: dict[str, Any]) -> dict[str, Any]:
                 rows.append(
                     [f"Трубчатый электропривод {_MOTOR_NAMES[brand]} (ZIP)", motor_b * euro_rate],
                 )
+                cap_txt = _remote_customer_caption(remote_lbl)
                 if remote_eur > 0:
-                    rows.append(
-                        [
-                            f"Пульт управления — {remote_lbl} (нужно {ch_need} радиоканал., до {r_cap})",
-                            remote_eur * euro_rate,
-                        ]
+                    row_title = (
+                        f"Пульт управления — {cap_txt}"
+                        if cap_txt
+                        else "Пульт управления"
                     )
+                    rows.append([row_title, remote_eur * euro_rate])
                 remote_meta = {
-                    "label": remote_lbl,
+                    "label": cap_txt if remote_eur > 0 else "",
                     "variant": rv,
                     "eur": remote_eur,
                     "channels_needed": ch_need,
@@ -1225,9 +1285,7 @@ def calculate(params: dict[str, Any]) -> dict[str, Any]:
     ) * euro_rate
     _dp = _delivery_pct(pricing)
     delivery = comp_rub * _dp
-    rows.append(
-        [f"Изготовление и подготовка ({int(round(_dp * 100))}%)", delivery],
-    )
+    rows.append(["Сборка", delivery])
 
     if installation == "with":
         h_inst = float(params.get("height", 2.0))
@@ -1279,7 +1337,7 @@ def calculate(params: dict[str, Any]) -> dict[str, Any]:
         )
         if remote_meta and remote_meta.get("label"):
             text_lines.insert(-1, f"Пульт управления: {remote_meta['label']}")
-        out_mc = {k: mc[k] for k in ("display_name", "headline", "bullets_plain", "brand_key")}
+        out_mc = {k: mc[k] for k in ("display_name", "headline", "bullets_plain", "brand_key", "scenario")}
         _st = params.get("sensor_type", "none")
         if _st in ("radio", "speed") and awning_type != "zip":
             _sline = get_sensor_application_line(str(brand), str(_st))
@@ -1356,5 +1414,8 @@ def calculate(params: dict[str, Any]) -> dict[str, Any]:
             "pricelist_image": decolife_pick.get("pricelist_image", ""),
             "lighting_compatible": decolife_pick.get("lighting_compatible", True),
             "product_line": decolife_pick.get("product_line", "open_elbow"),
+            "bracket_count": decolife_pick.get("bracket_count"),
+            "elbow_count": decolife_pick.get("elbow_count"),
+            "shaft_support_count": decolife_pick.get("shaft_support_count"),
         }
     return out

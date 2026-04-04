@@ -13,6 +13,7 @@
 :root{
   --ch-dark:#1a2744;--ch-dark2:#243057;
   --ch-orange:#e8622a;--ch-orange-h:#d4541f;
+  --ch-accent:var(--ch-orange);/* акцент: badge, сценарий, подсказки; без этого наследуется --ch-text */
   --ch-light:#f4f6fb;--ch-border:#dde3f0;
   --ch-text:#1a2744;--ch-muted:#6b7a99;
   --ch-white:#fff;--ch-radius:12px;--ch-radius-sm:8px;
@@ -42,6 +43,10 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
 .wz-progress::-webkit-scrollbar{height:4px}
 .wz-progress::-webkit-scrollbar-thumb{background:var(--ch-border);border-radius:4px}
 .wz-step-node{display:flex;flex-direction:column;align-items:center;flex:0 0 auto}
+.wz-step-node--clickable{cursor:pointer}
+.wz-step-node--clickable:hover .wz-step-dot.done,.wz-step-node--clickable:hover .wz-step-dot.active{transform:scale(1.06)}
+.wz-step-node--clickable:focus{outline:none}
+.wz-step-node--clickable:focus-visible .wz-step-dot{box-shadow:0 0 0 3px rgba(232,98,42,0.45)}
 .wz-step-dot{width:26px;height:26px;border-radius:50%;background:var(--ch-border);color:var(--ch-muted);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;transition:all 0.3s;position:relative;z-index:1;flex-shrink:0}
 .wz-step-dot.done{background:var(--ch-dark);color:#fff}
 .wz-step-dot.active{background:var(--ch-orange);color:#fff;box-shadow:0 0 0 4px rgba(232,98,42,0.18)}
@@ -178,8 +183,10 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
 .wz-btn-calc:disabled{opacity:0.6;cursor:not-allowed}
 
 /* --- Плавающая навигация после выбора ткани (нижний блок #wzNav не двигается) --- */
-.fabric-nav-float{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;visibility:hidden;pointer-events:none;transition:opacity 0.28s ease,visibility 0.28s ease}
-.fabric-nav-float.visible{opacity:1;visibility:visible;pointer-events:auto}
+/* Закрыт: display:none — кнопки оверлея не дублируют нижнюю навигацию в разметке */
+.fabric-nav-float{position:fixed;inset:0;z-index:9000;display:none;align-items:center;justify-content:center;padding:16px}
+.fabric-nav-float.visible{display:flex;pointer-events:auto;animation:fabricFloatIn 0.28s ease}
+@keyframes fabricFloatIn{from{opacity:0}to{opacity:1}}
 .fabric-nav-float-backdrop{position:absolute;inset:0;background:rgba(26,39,68,0.42);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
 .fabric-nav-float-card{position:relative;z-index:1;width:100%;max-width:360px;background:#fff;border-radius:var(--ch-radius);border:1.5px solid var(--ch-border);box-shadow:0 16px 48px rgba(26,39,68,0.22);padding:20px 18px 16px;text-align:center}
 .fabric-nav-float-title{font-size:16px;font-weight:700;color:var(--ch-dark);margin:0 0 8px}
@@ -198,25 +205,30 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
 .result-block.visible{display:block}
 .decolife-result-card{margin-top:14px;padding:16px 18px;border-radius:var(--ch-radius);background:linear-gradient(145deg,rgba(30,42,68,.95),rgba(22,32,54,.98));border:1px solid rgba(232,98,42,.25);display:none}
 .decolife-result-card[hidden]{display:none!important}
-.decolife-result-inner{display:flex;flex-direction:column;gap:14px}
+.decolife-result-inner{display:flex;flex-direction:column;gap:6px}
 /* Эскиз на всю ширину блока; текст под картинкой */
-.decolife-result-media{width:100%;border-radius:12px;overflow:hidden;background:rgba(0,0,0,.22);box-shadow:0 8px 28px rgba(0,0,0,.4)}
-.decolife-result-thumb{display:block;width:100%;max-width:none;height:auto;max-height:min(72vh,520px);object-fit:contain;object-position:center top;cursor:zoom-in;margin:0;vertical-align:top}
-.decolife-result-text{min-width:0}
-.decolife-result-badge{display:inline-block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ch-accent);margin-bottom:6px}
-.decolife-result-title{font-size:1.15rem;font-weight:700;color:var(--ch-text);line-height:1.25}
-.decolife-result-meta{font-size:.85rem;color:var(--ch-muted);margin:8px 0 0;line-height:1.45}
-.decolife-result-desc{font-size:.9rem;color:rgba(244,246,251,.88);margin:10px 0 0;line-height:1.5}
-.decolife-result-multi{font-size:.82rem;color:var(--ch-accent);margin-top:10px;line-height:1.4}
+.decolife-result-media{width:100%;border-radius:12px;overflow:hidden;background:rgba(0,0,0,.22);box-shadow:0 8px 28px rgba(0,0,0,.4);line-height:0}
+.decolife-result-thumb{display:block;width:100%;max-width:none;height:auto;max-height:min(64vh,480px);object-fit:contain;object-position:center top;cursor:zoom-in;margin:0;vertical-align:top}
+.decolife-result-text{min-width:0;padding-top:2px}
+.decolife-result-badge{display:inline-block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ch-accent);margin-bottom:2px}
+.decolife-result-title{font-size:1.05rem;font-weight:700;color:rgba(244,246,251,.96);line-height:1.2}
+.decolife-result-title:empty{display:none}
+.decolife-result-meta{font-size:.85rem;color:rgba(196,206,228,.92);margin:4px 0 0;line-height:1.4}
+.decolife-result-desc{font-size:.9rem;color:rgba(244,246,251,.88);margin:6px 0 0;line-height:1.5}
+.decolife-result-multi{font-size:.82rem;color:var(--ch-accent);margin-top:6px;line-height:1.4}
 @keyframes chSlide{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
 .result-label{font-size:13px;color:#8a9bbf;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px}
-.result-price{font-size:clamp(26px, 8vw, 40px);font-weight:700;color:#fff;line-height:1;margin-bottom:20px}
+.result-price{font-size:clamp(26px, 8vw, 40px);font-weight:700;color:#fff;line-height:1;margin-bottom:8px}
 .result-price span{font-size:22px;margin-left:4px}
+.result-price-sub{font-size:0.85em;color:#9aaabf;margin-top:0;margin-bottom:16px;line-height:1.45}
+.decolife-result-scenario{font-size:0.9em;color:var(--ch-accent);font-style:italic;margin:4px 0 2px;line-height:1.35}
 
 /* --- ДЕТАЛИЗАЦИЯ --- */
 .breakdown-block{background:var(--ch-white);border:1.5px solid var(--ch-border);border-radius:var(--ch-radius);overflow:hidden;margin-top:16px;display:none;animation:chSlide 0.4s ease 0.1s both}
 .breakdown-block.visible{display:block}
 .breakdown-header{padding:14px 18px;background:var(--ch-light);border-bottom:1px solid var(--ch-border);font-size:13px;font-weight:700;color:var(--ch-muted);text-transform:uppercase;letter-spacing:0.05em}
+.breakdown-head-inner{padding:0 18px 10px;background:var(--ch-light);border-bottom:1px solid var(--ch-border)}
+.urgency-note{font-size:0.78em;color:var(--ch-orange);font-style:italic;line-height:1.4;margin:0}
 .bd-row{display:flex;justify-content:space-between;align-items:baseline;padding:10px 18px;border-bottom:1px solid #f0f3f9;font-size:13px}
 .bd-row:last-child{border-bottom:none}
 .bd-label{color:var(--ch-text);flex:1;word-break:break-word;hyphens:auto}
@@ -229,6 +241,13 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
 .bd-grand-price{font-size:22px;font-weight:700;color:#fff}
 
 /* --- СКАЧАТЬ КП --- */
+.trust-badges-wrap{display:none;margin-top:12px;padding:12px 14px;border:1.5px solid var(--ch-border);border-radius:var(--ch-radius);background:var(--ch-white);animation:chSlide 0.35s ease}
+.trust-badges-wrap.visible{display:block}
+.trust-badges{display:flex;flex-wrap:wrap;justify-content:space-around;align-items:flex-start;gap:8px;padding:4px 0}
+.trust-badge{text-align:center;flex:1;min-width:72px}
+.trust-badge-ico{font-size:1.4em;line-height:1}
+.trust-badge-txt{font-size:0.75em;color:#6b7a99;margin-top:2px;line-height:1.25}
+.pdf-trust-line{text-align:center;font-size:0.8em;color:#9aaabf;margin-bottom:8px;line-height:1.35}
 .pdf-btn-wrap{margin-top:12px;display:none;animation:chSlide 0.35s ease}
 .pdf-btn-wrap.visible{display:block}
 .pdf-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 20px;background:transparent;border:2px solid var(--ch-orange);border-radius:var(--ch-radius);color:var(--ch-orange);font-size:14px;font-weight:700;font-family:'Arial',sans-serif;cursor:pointer;transition:var(--ch-trans);text-decoration:none;letter-spacing:0.02em}
@@ -436,44 +455,110 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
   .wz-panel.wz-active,.wz-panel-back,.result-block,.breakdown-block,.lead-form{animation:none}
   .aw-slides,.aw-slides-js{transition:none}
 }
+/* Шаг 3: подсказка, пресеты, слайдер ширины */
+.size-measure-hint{background:#f4f6fb;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--ch-muted);line-height:1.5}
+.size-measure-hint b{color:var(--ch-dark);font-weight:700}
+.size-preset-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+.size-preset-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ch-muted);width:100%}
+.size-preset-btn{font-size:12px;padding:6px 14px;border:1.5px solid var(--ch-border);border-radius:20px;background:#fff;cursor:pointer;color:var(--ch-text);font-family:'Arial',sans-serif;transition:border-color .15s,background .15s}
+.size-preset-btn:hover{border-color:var(--ch-orange);background:rgba(232,98,42,0.04)}
+.width-slider-row{display:flex;gap:10px;align-items:center;width:100%}
+.width-slider-row .ch-input{width:90px;flex-shrink:0}
+.width-slider-row input[type=range]{flex:1;min-width:0;accent-color:var(--ch-orange)}
+.width-slider-val{font-size:13px;color:var(--ch-muted);min-width:40px;text-align:right}
+.size-row-field--span-all{grid-column:1/-1}
+.size-warning-crossed{display:none;background:#fff3ee;border:1px solid #f0c0a0;border-radius:10px;padding:10px 14px;font-size:12px;color:#c04820;margin-top:10px;line-height:1.45}
+/* Витринная: выпадающие локти, ткань, подсказка привода */
+.storefront-drop-arms-info{background:#f4f6fb;border-radius:12px;padding:14px 16px;margin:16px 0}
+.storefront-drop-arms-title{font-weight:600;font-size:14px;color:var(--ch-dark);margin-bottom:8px}
+.storefront-drop-arms-lead{font-size:13px;color:#4a5568;line-height:1.6;margin:0 0 10px}
+.storefront-drop-arms-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:640px){.storefront-drop-arms-grid{grid-template-columns:1fr}}
+.storefront-drop-arms-card{background:#fff;border-radius:8px;padding:10px 12px;font-size:12px;color:#6b7a99;line-height:1.45}
+.storefront-drop-arms-card-title{font-weight:600;color:var(--ch-dark);margin-bottom:4px}
+.storefront-drop-arms-card--accent .storefront-drop-arms-card-title{color:var(--ch-orange)}
+.fabric-storefront-ctx{background:#fff3ee;border:1px solid #f0c0a0;border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--ch-dark);line-height:1.5}
+.storefront-motor-hint{font-size:12px;color:#9aaabf;margin-top:8px;padding:8px 12px;background:#f4f6fb;border-radius:8px;line-height:1.45}
+/* Шаг 6: подсказки под переключателями */
+.toggle-hint-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;margin-bottom:10px}
+.toggle-hint-item{flex:1;min-width:min(100%,140px);display:flex;flex-direction:column;align-items:stretch;gap:4px}
+.toggle-hint-item .toggle-btn{width:100%}
+.toggle-hint-text{font-size:11px;color:#9aaabf;text-align:center;line-height:1.35;min-height:2.7em}
+/* Превью под выбранным датчиком (ветровые колебания) */
+.sensor-option-preview{display:none!important;margin-top:8px;text-align:center}
+.sensor-option-preview.visible{display:block!important}
+.sensor-option-preview img{display:block;width:100%;max-width:min(100%,260px);margin:0 auto;max-height:min(44vw,160px);object-fit:contain;border-radius:12px;box-shadow:0 4px 14px rgba(0,0,0,.08)}
+/* Два кадра в одну линию: равные колонки, без width:100% на img (ломало flex) */
+.led-preview-row{display:none!important;flex-direction:row;flex-wrap:nowrap;gap:10px;margin-top:14px;align-items:stretch}
+.led-preview-row.visible{display:flex!important}
+.led-preview-cell{flex:1 1 0;min-width:0;max-width:50%}
+.led-preview-cell img{display:block;width:100%;height:clamp(100px,28vw,176px);object-fit:cover;border-radius:12px;box-shadow:0 4px 18px rgba(0,0,0,.08)}
+@media (max-width:380px){
+  .led-preview-row.visible{gap:6px}
+  .led-preview-cell img{height:96px}
+}
+.color-swatch-hint{font-size:10px;color:#9aaabf;text-align:center;margin-top:4px;line-height:1.3}
+/* Шаг 7: сводка */
+.config-summary-box{background:#f4f6fb;border-radius:12px;padding:14px 16px;margin-bottom:18px}
+.config-summary-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ch-muted);margin-bottom:10px}
+.config-summary-chips{display:flex;flex-wrap:wrap;gap:8px}
+.config-chip{font-size:12px;background:#fff;border:1px solid var(--ch-border);border-radius:20px;padding:4px 12px;color:var(--ch-text)}
+.config-chip--accent{background:#fff3ee;border-color:#f0c0a0;color:var(--ch-orange)}
+/* Модалка каталога RAL */
+.ral-modal{position:fixed;inset:0;z-index:10020;display:none;align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
+.ral-modal.visible{display:flex}
+.ral-modal-backdrop{position:absolute;inset:0;background:rgba(15,20,40,0.55);backdrop-filter:blur(4px)}
+.ral-modal-dialog{position:relative;z-index:1;width:100%;max-width:520px;max-height:min(88vh,640px);overflow:hidden;display:flex;flex-direction:column;background:#fff;border-radius:16px;box-shadow:0 24px 64px rgba(0,0,0,.2)}
+.ral-modal-close{position:absolute;top:10px;right:12px;width:36px;height:36px;border:none;background:transparent;font-size:26px;line-height:1;cursor:pointer;color:var(--ch-muted);border-radius:8px}
+.ral-modal-close:hover{color:var(--ch-orange);background:#f4f6fb}
+.ral-modal-title{margin:0;padding:18px 44px 8px 18px;font-size:17px;color:var(--ch-dark)}
+.ral-modal-lead{margin:0 18px 12px;font-size:12px;color:var(--ch-muted);line-height:1.45}
+.ral-modal-search{margin:0 18px 12px;padding:10px 12px;border:1.5px solid var(--ch-border);border-radius:10px;font-size:14px;font-family:inherit}
+.ral-catalog-grid{flex:1;overflow-y:auto;padding:0 12px 16px 18px;display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px}
+.ral-catalog-item{display:flex;align-items:flex-start;gap:10px;width:100%;text-align:left;padding:10px 10px;border:1.5px solid var(--ch-border);border-radius:10px;background:#fff;cursor:pointer;font-family:inherit;transition:border-color .15s,background .15s}
+.ral-catalog-item:hover{border-color:var(--ch-orange);background:#fff9f6}
+.ral-catalog-swatch{width:36px;height:36px;border-radius:8px;flex-shrink:0;border:1px solid rgba(0,0,0,.08)}
+.ral-catalog-meta{min-width:0}
+.ral-catalog-code{font-weight:700;font-size:13px;color:var(--ch-dark)}
+.ral-catalog-name{font-size:11px;color:var(--ch-muted);line-height:1.3;margin-top:2px}
 </style>
 </head>
 <body>
 <div class="ch-calc">
 
   <!-- ПРОГРЕСС-БАР -->
-  <div class="wz-progress">
-    <div class="wz-step-node">
+  <div class="wz-progress" role="navigation" aria-label="Этапы конфигуратора">
+    <div class="wz-step-node" data-wz-step="1">
       <div class="wz-step-dot active" id="wzDot1">1</div>
       <div class="wz-step-label active" id="wzLbl1">Тип</div>
     </div>
     <div class="wz-step-line" id="wzLine1"></div>
-    <div class="wz-step-node">
+    <div class="wz-step-node" data-wz-step="2">
       <div class="wz-step-dot" id="wzDot2">2</div>
       <div class="wz-step-label" id="wzLbl2">Констр.</div>
     </div>
     <div class="wz-step-line" id="wzLine2"></div>
-    <div class="wz-step-node">
+    <div class="wz-step-node" data-wz-step="3">
       <div class="wz-step-dot" id="wzDot3">3</div>
       <div class="wz-step-label" id="wzLbl3">Размеры</div>
     </div>
     <div class="wz-step-line" id="wzLine3"></div>
-    <div class="wz-step-node">
+    <div class="wz-step-node" data-wz-step="4">
       <div class="wz-step-dot" id="wzDot4">4</div>
       <div class="wz-step-label" id="wzLbl4">Ткань</div>
     </div>
     <div class="wz-step-line" id="wzLine4"></div>
-    <div class="wz-step-node">
+    <div class="wz-step-node" data-wz-step="5">
       <div class="wz-step-dot" id="wzDot5">5</div>
       <div class="wz-step-label" id="wzLbl5">Цвет</div>
     </div>
     <div class="wz-step-line" id="wzLine5"></div>
-    <div class="wz-step-node">
+    <div class="wz-step-node" data-wz-step="6">
       <div class="wz-step-dot" id="wzDot6">6</div>
       <div class="wz-step-label" id="wzLbl6">Привод</div>
     </div>
     <div class="wz-step-line" id="wzLine6"></div>
-    <div class="wz-step-node">
+    <div class="wz-step-node" data-wz-step="7">
       <div class="wz-step-dot" id="wzDot7">7</div>
       <div class="wz-step-label" id="wzLbl7">Монтаж</div>
     </div>
@@ -490,7 +575,7 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
       </div>
       <div class="choice-card" data-value="storefront">
         <div class="choice-card-label">Витринная</div>
-        <div class="choice-card-desc">Для магазинов, кафе и входных групп</div>
+        <div class="choice-card-desc">Защита окон и витрин от солнца. Убирает блики со стекла — товары видны покупателям. Для магазинов, кафе, офисов.</div>
       </div>
       <div class="choice-card" data-value="zip">
         <div class="choice-card-label">ZIP</div>
@@ -510,6 +595,20 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
     <div class="wz-step-sub" id="configStepSub">Выберите конструкцию маркизы</div>
     <div class="wz-error" id="step2Error"></div>
     <div id="configCards" class="choice-grid choice-grid-3"></div>
+    <div id="storefrontDropArmsInfo" class="storefront-drop-arms-info" hidden>
+      <div class="storefront-drop-arms-title">Как работают выпадающие локти витринной маркизы</div>
+      <p class="storefront-drop-arms-lead">В отличие от локтевых маркиз, где локти раскрываются горизонтально над террасой, витринные маркизы используют <strong>выпадающие подпружиненные локти</strong>: они опускаются вниз и натягивают полотно перед окном или витриной.</p>
+      <div class="storefront-drop-arms-grid">
+        <div class="storefront-drop-arms-card">
+          <div class="storefront-drop-arms-card-title">📐 Угол 90° — стандарт</div>
+          <div class="storefront-drop-arms-card-text">Козырёк горизонтально над окном. Защищает от верхнего солнца, создаёт тень на витрине.</div>
+        </div>
+        <div class="storefront-drop-arms-card storefront-drop-arms-card--accent">
+          <div class="storefront-drop-arms-card-title">📐 Угол 170° — опция +15%</div>
+          <div class="storefront-drop-arms-card-text">Локти опускаются почти вертикально. Полная защита от солнца в любое время дня. Витрина затенена как шторой.</div>
+        </div>
+      </div>
+    </div>
     <div id="elbowArmsPanel" class="elbow-arms-panel" aria-live="polite">
       <div class="elbow-arms-panel-title">Локти и натяжение полотна</div>
       <p>У локтевой маркизы нагрузку от ветра и собственный вес ткани несут складные плечи (локти). Чем больше <strong>вылет</strong>, тем выше требования к <strong>профилю и механизму натяжения</strong> — иначе провисание, «парусность» и ускоренный износ полотна.</p>
@@ -548,6 +647,21 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
   <div class="wz-panel" data-step="3">
     <div class="wz-step-title">Размеры и количество</div>
     <div class="wz-step-sub" id="sizeStepSub">Укажите ширину и вылет для каждой маркизы</div>
+    <div class="size-measure-hint" id="sizeMeasureHint" hidden></div>
+    <div class="size-preset-bar" id="sizeQuickPresets" hidden>
+      <span class="size-preset-label">Быстрый выбор</span>
+      <button type="button" class="size-preset-btn" data-w="2" data-p="1.5">Балкон 2×1,5 м</button>
+      <button type="button" class="size-preset-btn" data-w="4" data-p="3">Стандарт 4×3 м ⭐</button>
+      <button type="button" class="size-preset-btn" data-w="5" data-p="3">Терраса 5×3 м</button>
+      <button type="button" class="size-preset-btn" data-w="6" data-p="3.5">Кафе 6×3,5 м</button>
+    </div>
+    <div class="size-preset-bar" id="sizeQuickPresetsStorefront" hidden>
+      <span class="size-preset-label">Быстрый выбор</span>
+      <button type="button" class="size-preset-btn" data-w="2" data-p="0.8">Небольшое окно 2×0,8 м</button>
+      <button type="button" class="size-preset-btn" data-w="3" data-p="1">Витрина 3×1 м ⭐</button>
+      <button type="button" class="size-preset-btn" data-w="4" data-p="1">Кафе 4×1 м</button>
+      <button type="button" class="size-preset-btn" data-w="5" data-p="1.4">Большая витрина 5×1,4 м</button>
+    </div>
     <div class="wz-error" id="step3Error"></div>
     <div class="wz-info" id="zipUpgradeNotice">
       <div class="wz-info-icon">⚠️</div>
@@ -566,6 +680,12 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
     <div class="wz-step-sub" id="fabricStepSub">Ткань влияет на внешний вид и категорию цены</div>
 
     <div id="fabricStdGroup">
+      <div id="fabricStorefrontCtx" class="fabric-storefront-ctx" hidden>
+        <strong>Ткань витринной маркизы выполняет двойную роль:</strong>
+        защищает от солнца <em>и</em> является лицом вашего бизнеса.
+        На полотно можно нанести логотип или корпоративные цвета — это отдельная опция,
+        уточните у менеджера.
+      </div>
       <div class="sattler-fabric-intro" id="sattlerFabricIntro">
         <p class="sattler-fabric-intro-lead">Для <strong>локтевых и витринных маркиз</strong> мы предлагаем акрил премиум-класса <strong>Sattler SUN-TEX</strong> (группа Sattler, Европа): ткани для солнцезащиты с доказанной УФ-стойкостью, отделкой TEXgard и коллекциями от спокойных однотонов до выразительных фактур.</p>
         <details class="sattler-fabric-details">
@@ -674,24 +794,29 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
   <div class="wz-panel" data-step="5">
     <div class="wz-step-title">Цвет каркаса</div>
     <div class="wz-step-sub">Выберите цвет алюминиевого профиля маркизы</div>
+    <div class="wz-error" id="step5Error"></div>
 
     <div id="colorStdGroup">
       <div class="color-swatches" id="colorStdSwatches">
         <div class="color-swatch selected" data-value="white">
           <div class="color-swatch-dot" style="background:#f5f5f5;border:2px solid #c0c8d8"></div>
           <div class="color-swatch-label">RAL 9016 глянец белый</div>
+          <div class="color-swatch-hint">Универсально, подходит к любому фасаду</div>
         </div>
         <div class="color-swatch" data-value="brown">
           <div class="color-swatch-dot" style="background:#5C3317"></div>
           <div class="color-swatch-label">RAL 8014 глянец / муар корич. +5%</div>
+          <div class="color-swatch-hint">Тёплые тона, дерево и кирпич</div>
         </div>
         <div class="color-swatch" data-value="anthracite">
           <div class="color-swatch-dot" style="background:#383838"></div>
           <div class="color-swatch-label">RAL 7016 муар текст. антрацит +5%</div>
+          <div class="color-swatch-hint">Современный стиль, серый фасад</div>
         </div>
         <div class="color-swatch" data-value="custom">
           <div class="color-swatch-dot color-swatch-rainbow"></div>
           <div class="color-swatch-label">Спец. RAL +12%</div>
+          <div class="color-swatch-hint">Каталог RAL: нажмите и выберите номер</div>
         </div>
       </div>
       <!-- G400 / G450 (витринная): прайс Decolife G400 Italy -->
@@ -699,26 +824,32 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
         <div class="color-swatch selected" data-value="white">
           <div class="color-swatch-dot" style="background:#f5f5f5;border:2px solid #c0c8d8"></div>
           <div class="color-swatch-label">RAL 9016 глянец белый</div>
+          <div class="color-swatch-hint">Универсально, подходит к любому фасаду</div>
         </div>
         <div class="color-swatch" data-value="brown">
           <div class="color-swatch-dot" style="background:#5C3317"></div>
           <div class="color-swatch-label">RAL 8014 муар / гл. корич.</div>
+          <div class="color-swatch-hint">Тёплые тона, дерево и кирпич</div>
         </div>
         <div class="color-swatch" data-value="ral9005">
           <div class="color-swatch-dot" style="background:#1a1a1a"></div>
           <div class="color-swatch-label">RAL 9005 муар</div>
+          <div class="color-swatch-hint">Контрастный тёмный фасад</div>
         </div>
         <div class="color-swatch" data-value="anthracite">
           <div class="color-swatch-dot" style="background:#383838"></div>
           <div class="color-swatch-label">RAL 7016 антрацит +10%</div>
+          <div class="color-swatch-hint">Современный стиль, серый фасад</div>
         </div>
         <div class="color-swatch" data-value="ral9t08">
           <div class="color-swatch-dot" style="background:#38383C"></div>
           <div class="color-swatch-label">RAL 9T08 муар +10%</div>
+          <div class="color-swatch-hint">Графитовые и нейтральные отделки</div>
         </div>
         <div class="color-swatch" data-value="custom">
           <div class="color-swatch-dot color-swatch-rainbow"></div>
           <div class="color-swatch-label">Спец. RAL +12%</div>
+          <div class="color-swatch-hint">Каталог RAL: нажмите и выберите номер</div>
         </div>
       </div>
     </div>
@@ -744,6 +875,7 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
         <div class="color-swatch" data-value="custom">
           <div class="color-swatch-dot color-swatch-rainbow"></div>
           <div class="color-swatch-label">Спец. RAL +10%</div>
+          <div class="color-swatch-hint">Каталог RAL: нажмите и выберите номер</div>
         </div>
       </div>
     </div>
@@ -770,40 +902,73 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
       <div class="choice-grid choice-grid-3" id="motorCards">
         <div class="choice-card" data-value="somfy">
           <div class="choice-card-label">Somfy</div>
-          <div class="choice-card-desc">Франция · премиум</div>
+          <div class="choice-card-desc">Франция · бесшумный, умный дом</div>
         </div>
         <div class="choice-card" data-value="simu">
           <div class="choice-card-label">Simu</div>
-          <div class="choice-card-desc">Франция · средний класс</div>
+          <div class="choice-card-desc">Франция · надёжный, пульт в комплекте</div>
         </div>
         <div class="choice-card selected" data-value="decolife" id="motorDecolife">
           <div class="choice-card-label">Gaviota</div>
-          <div class="choice-card-desc">Беларусь · бюджет</div>
+          <div class="choice-card-desc">Испания · надёжность, с 1973 г.</div>
         </div>
       </div>
 
       <div id="sensorSection">
         <div class="wz-section-label">Датчики</div>
-        <div class="toggle-group" id="sensorToggles">
-          <button type="button" class="toggle-btn selected" data-value="none">Без датчика</button>
-          <button type="button" class="toggle-btn" data-value="radio">Датчик ветровых колебаний</button>
-          <button type="button" class="toggle-btn" data-value="speed">Датчик ветра и солнца</button>
+        <div class="toggle-hint-row" id="sensorToggles">
+          <div class="toggle-hint-item">
+            <button type="button" class="toggle-btn selected" data-value="none">Без датчика</button>
+            <div class="toggle-hint-text"></div>
+          </div>
+          <div class="toggle-hint-item">
+            <button type="button" class="toggle-btn" data-value="radio">Датчик ветровых колебаний</button>
+            <div class="toggle-hint-text">Маркиза свернётся сама при порыве ветра</div>
+            <div id="windSensorPreview" class="sensor-option-preview" aria-hidden="true">
+              <img src="/static/img/somfy_wind_vibration_sensor.png" alt="Датчик ветровых колебаний Somfy для маркизы" width="640" height="360" loading="lazy" decoding="async">
+            </div>
+          </div>
+          <div class="toggle-hint-item">
+            <button type="button" class="toggle-btn" data-value="speed">Датчик ветра и солнца</button>
+            <div class="toggle-hint-text">Открывает в жару, убирает при ветре автоматически</div>
+            <div id="sunWindSensorPreview" class="sensor-option-preview" aria-hidden="true">
+              <img src="/static/img/sensor_wind_sun.png" alt="Комбинированный датчик ветра и солнца для маркизы" width="640" height="360" loading="lazy" decoding="async">
+            </div>
+          </div>
         </div>
       </div>
 
       <div id="ledGroup">
         <div class="wz-section-label">LED подсветка</div>
-        <div class="toggle-group" id="ledToggles">
-          <button type="button" class="toggle-btn selected" data-value="none">Без подсветки</button>
-          <button type="button" class="toggle-btn" data-value="standard">С LED подсветкой</button>
+        <div class="toggle-hint-row" id="ledToggles">
+          <div class="toggle-hint-item">
+            <button type="button" class="toggle-btn selected" data-value="none">Без подсветки</button>
+            <div class="toggle-hint-text"></div>
+          </div>
+          <div class="toggle-hint-item">
+            <button type="button" class="toggle-btn" data-value="standard">С LED подсветкой</button>
+            <div class="toggle-hint-text">Встроенная подсветка в локтях Concept LED — терраса освещена вечером</div>
+          </div>
+        </div>
+        <div id="ledPreviewRow" class="led-preview-row" aria-hidden="true">
+          <div class="led-preview-cell">
+            <img src="/static/img/led_concept_arm_detail.png" alt="Локоть маркизы со встроенной LED-лентой" width="800" height="600" loading="lazy" decoding="async">
+          </div>
+          <div class="led-preview-cell">
+            <img src="/static/img/led_concept_terrace.png" alt="Терраса с маркизой: локти Concept LED с подсветкой" width="800" height="450" loading="lazy" decoding="async">
+          </div>
         </div>
       </div>
 
       <div id="remoteProfileGroup">
         <div class="wz-section-label">Пульт управления</div>
-        <p class="wz-hint" id="remoteProfileHint" style="margin-top:8px;font-size:12px;color:var(--ch-muted)">
-          Подбирается автоматически по числу маркиз и LED: на каждую маркизу — один радиоканал; при встроенной LED ещё один канал на освещение. Один пульт на весь расчёт (не умножается на количество копий одной позиции).
+        <p class="wz-hint" id="remoteProfileHint" style="margin-top:8px;font-size:13px;color:var(--ch-muted);line-height:1.45">
+          Пульт подбирается автоматически под ваш выбор и включён в стоимость. Один пульт управляет всеми маркизами в расчёте.
         </p>
+        <div id="storefrontMotorHint" class="storefront-motor-hint" hidden>
+          💡 Для кафе и магазинов рекомендуем электропривод — маркиза открывается
+          по расписанию утром и закрывается вечером без участия персонала.
+        </div>
       </div>
     </div>
   </div>
@@ -812,6 +977,10 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
   <div class="wz-panel" data-step="7">
     <div class="wz-step-title">Монтаж и установка</div>
     <div class="wz-step-sub">Включить стоимость монтажа в расчёт?</div>
+    <div class="config-summary-box" id="installConfigSummaryBox">
+      <div class="config-summary-title">Ваш выбор</div>
+      <div class="config-summary-chips" id="installConfigSummary"></div>
+    </div>
     <div class="choice-grid choice-grid-2" id="installCards">
       <div class="choice-card selected" data-value="none">
         <div class="choice-card-label">Без установки</div>
@@ -819,7 +988,7 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
       </div>
       <div class="choice-card" data-value="with">
         <div class="choice-card-label">С установкой</div>
-        <div class="choice-card-desc">Замер, монтаж и настройка включены</div>
+        <div class="choice-card-desc">Замер + монтаж + обучение управлению</div>
       </div>
     </div>
   </div>
@@ -849,6 +1018,7 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
   <div class="result-block" id="resultBlock">
     <div class="result-label">Итоговая стоимость</div>
     <div class="result-price" id="resultPrice">0 <span>&#8381;</span></div>
+    <p class="result-price-sub" id="resultPriceSub" hidden></p>
     <div class="decolife-result-card" id="decolifeResultCard" hidden>
       <div class="decolife-result-inner">
         <div class="decolife-result-media">
@@ -858,6 +1028,7 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
           <div class="decolife-result-badge" id="decolifeResultBadge">Подобранная серия Gaviota</div>
           <div class="decolife-result-title" id="decolifeResultTitle"></div>
           <p class="decolife-result-meta" id="decolifeResultMeta"></p>
+          <p class="decolife-result-scenario" id="decolifeResultScenario" hidden></p>
           <p class="decolife-result-desc" id="decolifeResultDesc"></p>
           <p class="decolife-result-multi" id="decolifeResultMulti" style="display:none"></p>
         </div>
@@ -868,11 +1039,36 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
   <!-- ДЕТАЛИЗАЦИЯ -->
   <div class="breakdown-block" id="breakdownBlock">
     <div class="breakdown-header">Детализация расчёта</div>
+    <div class="breakdown-head-inner">
+      <p class="urgency-note" id="urgencyNote">⏱ Срок изготовления сейчас — 3 недели. В мае–июне: 5–6 недель.</p>
+    </div>
     <div id="breakdownBody"></div>
+  </div>
+
+  <div class="trust-badges-wrap" id="trustBadgesWrap" hidden>
+    <div class="trust-badges">
+      <div class="trust-badge">
+        <div class="trust-badge-ico" aria-hidden="true">🏭</div>
+        <div class="trust-badge-txt">Gaviota<br>Испания, с 1973</div>
+      </div>
+      <div class="trust-badge">
+        <div class="trust-badge-ico" aria-hidden="true">🧵</div>
+        <div class="trust-badge-txt">Sattler<br>Австрия, 100+ лет</div>
+      </div>
+      <div class="trust-badge">
+        <div class="trust-badge-ico" aria-hidden="true">✅</div>
+        <div class="trust-badge-txt">Гарантия<br>2 + 5 лет</div>
+      </div>
+      <div class="trust-badge" id="trustBadgeInstall">
+        <div class="trust-badge-ico" id="trustBadgeInstallIco" aria-hidden="true">🔧</div>
+        <div class="trust-badge-txt" id="trustBadgeInstallTxt">Монтаж<br>включён</div>
+      </div>
+    </div>
   </div>
 
   <!-- СКАЧАТЬ КП PDF -->
   <div class="pdf-btn-wrap" id="pdfBtnWrap">
+    <div class="pdf-trust-line">📄 В PDF: полное описание · сравнение · ответы на вопросы · гарантии</div>
     <button class="pdf-btn" id="pdfDownloadBtn" onclick="downloadKP()">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
@@ -922,6 +1118,18 @@ body{background:#fff;font-family:'Arial',sans-serif;color:var(--ch-text)}
     <div class="success-icon"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
     <div class="success-title">Заявка принята!</div>
     <div class="success-sub" id="successSub">Менеджер перезвонит в течение 15 минут.</div>
+  </div>
+
+  <!-- Каталог RAL Classic (спец. цвет каркаса) -->
+  <div id="ralCatalogModal" class="ral-modal" aria-hidden="true">
+    <div class="ral-modal-backdrop" tabindex="-1"></div>
+    <div class="ral-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="ralModalTitle">
+      <button type="button" class="ral-modal-close" aria-label="Закрыть">&times;</button>
+      <h3 class="ral-modal-title" id="ralModalTitle">Каталог RAL Classic</h3>
+      <p class="ral-modal-lead">Выберите номер RAL и оттенок. Для экрана указаны ориентировочные RGB (каталог K7); точный цвет по образцу уточняется при заказе.</p>
+      <input type="search" id="ralCatalogSearch" class="ral-modal-search" placeholder="Поиск по номеру или названию…" autocomplete="off">
+      <div id="ralCatalogGrid" class="ral-catalog-grid"></div>
+    </div>
   </div>
 
 </div>
